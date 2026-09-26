@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "Edited baseline and both curves produce a valid configuration without changing sensors or recovery",
+    "Out-of-range, malformed, nonmonotonic and nonfinite edits are rejected before authorization",
+    "Max requests each hardware maximum across temperatures and retains automatic recovery",
+    "Opening and previewing the editor reads actual limits and never changes installed settings"
+  ],
+  "passed": 4,
+  "hardware_writes": false
+}

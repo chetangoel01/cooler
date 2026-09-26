@@ -69,7 +69,8 @@ sys.exit(code)
     (base/'cooler').symlink_to(backend)
 
     def preview(name):
-        result = subprocess.run([str(PLUGIN), '--preview-profile', name], capture_output=True,
+        args = ['--preview-custom',str(work/'custom.json')] if name=='custom' else ['--preview-profile',name]
+        result = subprocess.run([str(PLUGIN), *args], capture_output=True,
                                 text=True, env={**os.environ, 'COOLER_HOME':str(base)})
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
@@ -98,6 +99,16 @@ sys.exit(code)
         configs[name] = installed
     assert configs['cooler'] == json.loads(original), 'Cooler must preserve the original profile exactly'
     checks.append('All three presets validate, install, restart, and keep protected file modes')
+
+    edited={k:configs['cooler'][k] for k in ['baselineRPM','curve','palmCurve']}
+    edited['baselineRPM']=1900
+    (work/'custom.json').write_text(json.dumps(edited))
+    for name in ['max','custom']:
+        result,state,proposal=execute(name)
+        assert result.returncode==0, result.stderr
+        assert json.loads((base/'config.json').read_text())==proposal['config']
+        assert state['enabled'] and state['loaded'] and not state['automatic']
+    checks.append('Max and edited curves use the same validated installation and recovery transaction')
 
     frame = work/'frames.json'
     for name, config in configs.items():
@@ -136,9 +147,13 @@ sys.exit(code)
     auth.write_text('#!/bin/sh\necho "execution error: User canceled. (-128)" >&2\nexit 1\n')
     auth.chmod(0o755)
     actions=work/'actions'
+    user_data=work/'user-data'; user_data.mkdir()
+    saved_custom=json.dumps(edited)
+    (user_data/'custom.json').write_text(saved_custom)
     copy=work/'plugin.py'
     code=PLUGIN.read_text().replace("'/usr/bin/osascript'",repr(str(auth))).replace(
-        "ACTION_STATE = Path.home() / 'Library/Caches/CoolerMonitor'",f'ACTION_STATE = Path({str(actions)!r})')
+        "ACTION_STATE = Path.home() / 'Library/Caches/CoolerMonitor'",f'ACTION_STATE = Path({str(actions)!r})').replace(
+        "USER_DATA = Path.home() / 'Library/Application Support/Cooler'",f'USER_DATA = Path({str(user_data)!r})')
     copy.write_text(code); copy.chmod(0o755)
     before=Path(LIVE_BASE+'/config.json').read_bytes()
     result=subprocess.run([str(copy),'--apply-profile','balanced'],capture_output=True,text=True,timeout=5)
@@ -146,6 +161,10 @@ sys.exit(code)
     assert 'cancelled' in json.loads((actions/'action.json').read_text())['message']
     assert Path(LIVE_BASE+'/config.json').read_bytes()==before
     checks.append('Cancelled authorization keeps the installed configuration unchanged')
+    result=subprocess.run([str(copy),'--apply-custom',str(work/'custom.json')],capture_output=True,text=True,timeout=5)
+    assert not json.loads(result.stdout)['ok'] and Path(LIVE_BASE+'/config.json').read_bytes()==before
+    assert (user_data/'custom.json').read_text()==saved_custom
+    checks.append('Cancelled custom edits report failure to the editor and keep the installed curve')
     (actions/'action.json').write_text(json.dumps({'message':'Original action in progress'}))
     with (actions/'action.lock').open('w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)

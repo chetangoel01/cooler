@@ -4,7 +4,7 @@ A personal background fan controller for **MacBookPro18,4 / M1 Max**. It keeps a
 
 Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network access. Swift and IOKit; build requires Xcode Command Line Tools.
 
-An optional **SwiftBar plugin** provides a menu-bar temperature, readings, profile controls, and a local curve viewer. It uses the existing Homebrew Python 3 installation; the controller itself still has no external runtime dependencies.
+An optional **SwiftBar plugin** provides a menu-bar temperature, readings, profile controls, and a local curve viewer. **Cooler Curves**, a small native editor opened from the menu, edits the custom curve. The plugin uses the existing Homebrew Python 3 installation; the controller itself still has no external runtime dependencies.
 
 ## Current deployment status
 
@@ -54,7 +54,7 @@ tail /var/log/cooler.log
 
 Status includes the PID that wrote it and updates every two seconds. A fresh file alone is not proof that a newly restarted process is ready. Logs record mode transitions and failures, not continuous readings. After a macOS update, check that the status timestamp is fresh and the mode is `custom`; this machine currently runs macOS 27.0 build 26A428, outside Macs Fan Control's published support list at implementation time.
 
-To tune the profile, edit the source `config.json`, run `check` and the replay tests, then rerun `sudo ./install.sh`. Do not edit the installed file in place; the running service reads its configuration at startup.
+To tune the profile, use **Edit cooling curves…** in SwiftBar (below). For source defaults, edit `config.json`, run `check` and the replay tests, then rerun `sudo ./install.sh`. Do not edit the installed file in place; the running service reads its configuration at startup.
 
 Remove the service and return both fans to Apple automatic control:
 
@@ -70,7 +70,7 @@ Removal preserves this repository, test reports, and `/var/log/cooler.log`. Re-e
 
 Reading the menu needs no administrator access. Refreshes use read-only status, configuration, service queries, and `cooler probe`. SwiftBar does not trigger Cooler's competing-controller check. Controller status older than ten seconds or belonging to another process cannot mark custom control healthy. Temperatures come from the live probe, including while Cooler is off; missing reads fall back to fresh controller status. When Cooler yields to another controller, the menu says it is paused; Apple automatic is shown only when both hardware modes agree.
 
-Choose **Apple automatic**, **Quiet**, **Balanced**, or **Cooler** directly from the menu. The checkmark indicates the selected setting; the status line confirms whether it is currently active. macOS asks for administrator authorization when applying a change (it may reuse a recent authorization). Cancelling keeps the previous setting. Cooler preserves the original curve shown above.
+Choose **Apple automatic**, **Quiet**, **Balanced**, **Cooler**, **Max cooling**, or your saved **Custom curve** directly from the menu. The checkmark identifies the configured curve (an exact match with a preset is shown as that preset); the status line confirms whether it is currently active. macOS asks for administrator authorization when applying a change (it may reuse a recent authorization). Cancelling keeps the previous setting. Cooler preserves the original curve shown above.
 
 | Profile | Baseline | Targets at 75°C, left / right | Full speed by |
 |---|---:|---:|---:|
@@ -80,12 +80,20 @@ Choose **Apple automatic**, **Quiet**, **Balanced**, or **Cooler** directly from
 
 The table shows CPU/GPU requests before palm demand or retained speed during cooldown. Each preset has its own palm curve, with full speed at 40°C. Hardware RPM bounds, gradual slowdown, conflict detection, and the existing watchdog remain in effect. Quiet/Balanced comfort and noise have not been measured yet.
 
+**Max cooling** requests the hardware maximum on both fans, currently **5,779 / 6,241 RPM**. It stays selected until you choose another mode, including across restarts. It uses the same watchdog, conflict detection, sensor checks, and automatic recovery as the curves. Switching to another mode ends Max; there is no timer. Your saved Custom curve is kept.
+
+**Edit cooling curves…** opens a native window with CPU/GPU and palm-rest tabs. Drag the blue points or edit their temperature and demand values; the graph and exact left/right RPM update together. Adjust the minimum airflow from 1,200 to 2,500 RPM. Demand is the percentage of each fan's available range above that floor, not a percentage of its total RPM. Add or remove intermediate points as needed. Each curve must rise in temperature, never fall in demand, and end at 100%; invalid settings disable **Save & apply**. Temperatures are limited to 10–90°C, with 2–20 points per curve.
+
+Use **Start from** to copy an installed, saved, Quiet, Balanced, or Cooler curve into the editor. Changes remain a draft until **Save & apply** completes macOS authorization. That saves and activates a separate Custom curve, preserving the presets. A cancelled authorization preserves both the installed and previously saved curve. The saved curve survives profile switches and quitting SwiftBar. Only baseline and curve points are editable; sensor mappings and recovery settings stay unchanged. Opening the editor performs read-only queries and does not change fans.
+
 Changes are serialized and the proposed configuration is validated by the installed controller before interrupting control. Applying a profile stops Cooler, restores Apple automatic, atomically installs the protected configuration, then enables and starts the existing service. Failure after stopping restores the prior configuration and attempts to leave fans on Apple automatic with Cooler disabled. The menu reports errors and confirms a new process before claiming the preset is active. **Apple automatic** stops and persistently disables Cooler; selecting a preset enables it again. Both choices survive restart. There is no password storage, passwordless sudo rule, or additional privileged helper. The standard macOS authorization API runs fixed service/configuration operations only when you select a control.
 
 Installed locations:
 
 - App: `/Applications/SwiftBar.app` (Homebrew cask, version 2.1.1 at setup).
 - Plugin: `~/Library/Application Support/SwiftBar/Plugins/cooler.5s.py`, copied from `monitor/cooler.5s.py`.
+- Native editor: `~/Library/Application Support/Cooler/Cooler Curves.app`, built from `monitor/CurveEditor.swift`.
+- Saved Custom curve: `~/Library/Application Support/Cooler/custom.json`. This user-owned file is only a proposed configuration when selected; the installed controller validates it again before applying it to the protected system configuration.
 - Login startup: `~/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist`. It opens SwiftBar at login; quitting SwiftBar keeps it closed for that session. This is separate from SwiftBar's own Launch at Login checkbox, which can remain off. Actual logout/login remains untested.
 - Curve page: SwiftBar's per-plugin cache. Running the script directly uses `~/Library/Caches/CoolerMonitor/curves.html` instead.
 
@@ -94,21 +102,23 @@ To install or update the monitor on this Mac, with Homebrew Python already at `/
 ```sh
 cd /Users/chetangoel/CodexProjects/cooler
 brew install --cask swiftbar
-mkdir -p "$HOME/Library/Application Support/SwiftBar/Plugins" "$HOME/Library/LaunchAgents"
-install -m 755 monitor/cooler.5s.py "$HOME/Library/Application Support/SwiftBar/Plugins/cooler.5s.py"
-install -m 644 monitor/com.chetangoel.cooler-monitor.plist "$HOME/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist"
+/bin/sh monitor/install.sh
 python3 tests/monitor.py
+python3 tests/profiles.py
+python3 tests/curves.py
 ```
 
-Open SwiftBar once and select that Plugins folder. Allow SwiftBar in **System Settings → Menu Bar** if its item is hidden. The plugin is a regular copy, so repeat the `install` command after editing its source. The login agent takes effect on the next login. To remove just the monitor, quit SwiftBar, remove its plugin and the login plist, and remove SwiftBar if no other plugins use it; Cooler continues controlling the fans independently.
+Open SwiftBar once and select that Plugins folder. Allow SwiftBar in **System Settings → Menu Bar** if its item is hidden. Rerun `monitor/install.sh` after changing monitor/editor source. The installer needs Command Line Tools, builds and signs the native editor locally, and replaces the user-owned monitor files without changing the root controller or active curve. An open editor keeps its draft; reopen it after saving to load a newly installed version. The login agent takes effect on the next login. To remove just the monitor, quit SwiftBar and Cooler Curves, remove the plugin, login plist and editor app, and remove SwiftBar if no other plugins use it; Cooler continues controlling the fans independently. Keep `custom.json` if you want to preserve the custom curve.
 
 `tests/monitor.py` runs the complete plugin against controlled files and fake read-only hardware/service queries, then performs a real read-only run. It checks readings, curve configuration, automatic/yielded modes, old process status, stale/missing/corrupt status, a stalled probe, live temperatures with the daemon stopped, and the read-only refresh boundary. Rerunnable evidence is saved in `artifacts/monitor-report.json`, `artifacts/monitor-menu.txt`, and `artifacts/monitor-curves.html`.
 
-`python3 tests/profiles.py` exercises the full exported action scripts with simulated launchd/SMC operations and the real controller's configuration validation/replay. It checks preset ordering across chip/palm temperatures, restoration of the original Cooler preset, validation/stop/start failures, automatic mode persistence, cancelled authorization, and overlapping actions. The report is `artifacts/profiles-report.json`. It performs no real fan writes or administrator prompts. `monitor/cooler.5s.py --preview-profile balanced` prints the exact proposed configuration and shell operations without applying them. No unit tests were added.
+`python3 tests/profiles.py` exercises the full exported action scripts with simulated launchd/SMC operations and the real controller's configuration validation/replay. It checks preset ordering, Max/custom installation, restoration of the original Cooler preset, validation/stop/start failures, automatic mode persistence, cancelled authorization, and overlapping actions. The report is `artifacts/profiles-report.json`. `python3 tests/curves.py` checks custom validation, protected sensor/recovery settings, actual read-only editor data, Max at cold/hot temperatures, and automatic recovery during Max. Its report is `artifacts/curves-report.json`. Neither suite performs real fan writes or administrator prompts. `monitor/cooler.5s.py --preview-profile max` and `--preview-custom FILE.json` print the proposed configuration and operations without applying them. A custom file contains exactly `baselineRPM`, `curve`, and `palmCurve`. No unit tests were added.
 
 A separate live check successfully used the installed action and native authorization to reapply **Cooler**, confirming a new healthy controller process, unchanged curve values, protected configuration, manual fan modes, bounded targets, and both fans spinning. See `artifacts/profile-live-check.json`. The SwiftBar click itself, Apple automatic as a final selection, Quiet/Balanced everyday comfort, and reboot persistence remain unverified on-device; their command/configuration behavior has process-level coverage.
 
-Deployment also confirmed successful execution inside SwiftBar every five seconds. Visual menu/graph review remains unverified: app automation repeatedly reopened SwiftBar's recovery notice, and the preview browser disallowed local file URLs. Login startup is configured, not reboot-tested.
+The native editor was visually inspected and exercised on this Mac: baseline changes update both RPM previews, invalid temperature ordering disables Apply, both curve tabs work, and **Save & apply** activated an edited curve through native authorization. The live mode checks selected Max, verified both maximum targets, restored the saved Custom curve, and returned to Cooler while preserving Custom. Evidence and exact settings are in `artifacts/editor-live-check.json`. To repeat the UI check, open the editor, change baseline to 1,900 and the second palm point to 25%, verify that crossing two temperatures disables Apply, fix the order, then Save & apply. Select Max, Custom, and finally Cooler, checking status and targets each time. This repeat check changes real fan settings and may ask for administrator authorization.
+
+SwiftBar execution every five seconds has been verified. Direct SwiftBar menu clicking, graph dragging through computer automation, the older HTML viewer's visual rendering, and reboot persistence remain unverified. The native graph's displayed values, form edits and Apply flow have on-device coverage. Login startup is configured, not reboot-tested.
 
 ## Recovery and limits
 

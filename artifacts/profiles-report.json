@@ -1,14 +1,16 @@
 {
   "checks": [
     "All three presets validate, install, restart, and keep protected file modes",
+    "Max and edited curves use the same validated installation and recovery transaction",
     "Quiet \u2264 Balanced \u2264 Cooler across CPU/GPU and palm ranges; full speed by 90\u00b0C chip or 40\u00b0C palm",
     "Apple automatic stops and disables Cooler while preserving the profile",
     "Validation/stop/start failures preserve configuration; failed startup leaves Apple automatic",
     "Unknown actions are rejected before authorization",
     "Cancelled authorization keeps the installed configuration unchanged",
+    "Cancelled custom edits report failure to the editor and keep the installed curve",
     "Overlapping actions are serialized before authorization"
   ],
-  "passed": 7,
+  "passed": 9,
   "hardware_writes": false,
   "native_authorization_tested": false
 }

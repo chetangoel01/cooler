@@ -19,6 +19,11 @@ ARTIFACTS = ROOT / "artifacts"
 checks = []
 
 
+def active(menu):
+    # Only the live status line is authoritative; action history can mention a prior success.
+    return any(row.startswith('Cooler · Custom curve active') for row in menu.splitlines())
+
+
 with tempfile.TemporaryDirectory(prefix="cooler-monitor-") as directory:
     source = Path(directory)
     cache = source / "cache"
@@ -60,7 +65,7 @@ else: print('pid = 123')
 
     (source / "status.json").write_text(json.dumps(status))
     menu, html = run()
-    assert menu.startswith("55°C") and "Custom curve active" in menu
+    assert menu.startswith("55°C") and active(menu)
     assert "2,010 RPM" in menu and "2,198 RPM" in menu
     assert 'param2=quiet' in menu and 'param2=balanced' in menu and 'param2=cooler' in menu and 'param2=automatic' in menu
     assert "CPU &amp; GPU" in html and "Palm rest" in html and "<svg" in html
@@ -69,7 +74,7 @@ else: print('pid = 123')
     status['pid']=122
     (source/'status.json').write_text(json.dumps(status))
     menu,_=run()
-    assert 'Custom curve active' not in menu
+    assert not active(menu)
     checks.append('Status from an old controller process cannot mark a new one healthy')
     status['pid']=123
     (source/'status.json').write_text(json.dumps(status))
@@ -84,7 +89,7 @@ else: print('pid = 123')
     (source / "status.json").write_text(json.dumps(status))
     menu, _ = run()
     assert "Cooler paused" in menu and "Another fan controller" in menu
-    assert "Custom curve active" not in menu and "Target  Managed outside Cooler" in menu
+    assert not active(menu) and "Target  Managed outside Cooler" in menu
     checks.append("Yielding to another controller has no Cooler targets")
     values.update(F0Md=0, F1Md=0)
     (source / "probe.json").write_text(json.dumps({"values": values}))
@@ -112,7 +117,7 @@ else: print('pid = 123')
     (source / "status.json").write_text(json.dumps(status))
     menu, html = run()
     assert menu.startswith("Cooler ?") and "Status is stale" in menu
-    assert "Custom curve active" not in menu and "55.0°C" not in menu
+    assert not active(menu) and "55.0°C" not in menu
     checks.append("Stale status never appears live")
 
     for content in [None, "{broken"]:
@@ -128,7 +133,7 @@ else: print('pid = 123')
     (source / "status.json").write_text(json.dumps(status))
     (source / "stall").touch()
     menu, html = run()
-    assert "Fan readings unavailable" in menu and "Custom curve active" not in menu
+    assert "Fan readings unavailable" in menu and not active(menu)
     assert "Curves unavailable" in html
     checks.append("Probe timeout is bounded and does not claim verified control")
     assert set((source / "calls").read_text().splitlines()) == {"probe"}

@@ -1,0 +1,343 @@
+{
+  "started": "2026-09-26T23:33:52.505737+00:00",
+  "before_config": {
+    "model": "MacBookPro18,4",
+    "baselineRPM": 1800,
+    "fallRPMPerSecond": 40,
+    "cpuKeys": [
+      "Tp09",
+      "Tp0T",
+      "Tp01",
+      "Tp05",
+      "Tp0D",
+      "Tp0H",
+      "Tp0L",
+      "Tp0P",
+      "Tp0X",
+      "Tp0b"
+    ],
+    "gpuKeys": [
+      "Tg05",
+      "Tg0D",
+      "Tg0L",
+      "Tg0T"
+    ],
+    "curve": [
+      {
+        "temperature": 45,
+        "fraction": 0
+      },
+      {
+        "temperature": 55,
+        "fraction": 0.1
+      },
+      {
+        "temperature": 65,
+        "fraction": 0.3
+      },
+      {
+        "temperature": 75,
+        "fraction": 0.65
+      },
+      {
+        "temperature": 85,
+        "fraction": 1
+      }
+    ],
+    "palmKeys": [
+      "Ts0P",
+      "Ts1P"
+    ],
+    "palmCurve": [
+      {
+        "temperature": 30,
+        "fraction": 0
+      },
+      {
+        "temperature": 33,
+        "fraction": 0.2
+      },
+      {
+        "temperature": 36,
+        "fraction": 0.5
+      },
+      {
+        "temperature": 40,
+        "fraction": 1
+      }
+    ]
+  },
+  "before_status": {
+    "cpu": 78.85791015625,
+    "gpu": 71.28543090820312,
+    "mode": "custom",
+    "palm": 34.99609375,
+    "pid": 58170,
+    "reason": "Cooling curve active",
+    "restoredFans": [],
+    "targets": [
+      5234,
+      5658
+    ],
+    "time": "2026-09-26T23:33:51Z"
+  },
+  "ui_checks": [
+    "Native window opens with actual hardware fan limits",
+    "Baseline 1800 \u2192 1900 updates both RPM previews",
+    "Crossed temperature points disable Save & apply",
+    "CPU/GPU and palm-rest views use independent point values",
+    "Save & apply completed native authorization and showed Custom curve active"
+  ],
+  "not_verified": [
+    "Graph dragging via computer automation",
+    "Full reboot persistence"
+  ],
+  "custom_applied": {
+    "model": "MacBookPro18,4",
+    "baselineRPM": 1900,
+    "fallRPMPerSecond": 40,
+    "cpuKeys": [
+      "Tp09",
+      "Tp0T",
+      "Tp01",
+      "Tp05",
+      "Tp0D",
+      "Tp0H",
+      "Tp0L",
+      "Tp0P",
+      "Tp0X",
+      "Tp0b"
+    ],
+    "gpuKeys": [
+      "Tg05",
+      "Tg0D",
+      "Tg0L",
+      "Tg0T"
+    ],
+    "curve": [
+      {
+        "fraction": 0,
+        "temperature": 45
+      },
+      {
+        "fraction": 0.1,
+        "temperature": 55
+      },
+      {
+        "fraction": 0.3,
+        "temperature": 65
+      },
+      {
+        "fraction": 0.65,
+        "temperature": 75
+      },
+      {
+        "fraction": 1,
+        "temperature": 85
+      }
+    ],
+    "palmKeys": [
+      "Ts0P",
+      "Ts1P"
+    ],
+    "palmCurve": [
+      {
+        "fraction": 0,
+        "temperature": 30
+      },
+      {
+        "fraction": 0.25,
+        "temperature": 33
+      },
+      {
+        "fraction": 0.5,
+        "temperature": 36
+      },
+      {
+        "fraction": 1,
+        "temperature": 40
+      }
+    ]
+  },
+  "max": {
+    "response": {
+      "ok": true,
+      "message": "Max cooling active until you switch modes."
+    },
+    "status": {
+      "cpu": 75.55754089355469,
+      "gpu": 69.95179748535156,
+      "mode": "custom",
+      "palm": 34.99609375,
+      "pid": 65081,
+      "reason": "Cooling curve active",
+      "restoredFans": [],
+      "targets": [
+        5779,
+        6241
+      ],
+      "time": "2026-09-26T23:35:31Z"
+    },
+    "fan_readings": {
+      "F0Ac": 4654.16943359375,
+      "F0Dc": 0.4382810890674591,
+      "F0Fb": 1,
+      "F0Fc": 4,
+      "F0Md": 1,
+      "F0Mn": 1200,
+      "F0Mx": 5779,
+      "F0Sf": 0,
+      "F0St": 5,
+      "F0Tg": 5779,
+      "F1Ac": 3436.885498046875,
+      "F1Dc": 0.3710121512413025,
+      "F1Fb": 1,
+      "F1Fc": 4,
+      "F1Md": 1,
+      "F1Mn": 1200,
+      "F1Mx": 6241,
+      "F1Sf": 0,
+      "F1St": 5,
+      "F1Tg": 6241,
+      "FNum": 2,
+      "FOFC": 67,
+      "FOff": 1,
+      "FRmp": 0
+    }
+  },
+  "custom": {
+    "response": {
+      "ok": true,
+      "message": "Custom curve active. Saved for future restarts."
+    },
+    "status": {
+      "cpu": 81.51083374023438,
+      "gpu": 69.88236236572266,
+      "mode": "custom",
+      "palm": 34.99609375,
+      "pid": 65151,
+      "reason": "Cooling curve active",
+      "restoredFans": [],
+      "targets": [
+        5305,
+        5711
+      ],
+      "time": "2026-09-26T23:35:35Z"
+    },
+    "fan_readings": {
+      "F0Ac": 5089.41845703125,
+      "F0Dc": 0.44436272978782654,
+      "F0Fb": 1,
+      "F0Fc": 4,
+      "F0Md": 1,
+      "F0Mn": 1200,
+      "F0Mx": 5779,
+      "F0Sf": 0,
+      "F0St": 5,
+      "F0Tg": 5305,
+      "F1Ac": 5102.330078125,
+      "F1Dc": 0.45609620213508606,
+      "F1Fb": 1,
+      "F1Fc": 4,
+      "F1Md": 1,
+      "F1Mn": 1200,
+      "F1Mx": 6241,
+      "F1Sf": 0,
+      "F1St": 5,
+      "F1Tg": 5711,
+      "FNum": 2,
+      "FOFC": 67,
+      "FOff": 1,
+      "FRmp": 0
+    }
+  },
+  "restored_cooler": {
+    "ok": true,
+    "message": "Cooler curve active. Saved for future restarts."
+  },
+  "finished": "2026-09-26T23:35:40.724807+00:00",
+  "saved_custom_preserved": true,
+  "installed_editor_sha256": "e16f1c02822b268b8fe8c2b6a7a54218d1f36d5b6b453b41360c11ca43ec985a",
+  "after_user_edits_status": {
+    "cpu": 72.63163757324219,
+    "gpu": 69.2296142578125,
+    "mode": "custom",
+    "palm": 33.99609375,
+    "pid": 65699,
+    "reason": "Cooling curve active",
+    "restoredFans": [],
+    "targets": [
+      5779,
+      6241
+    ],
+    "time": "2026-09-26T23:40:03Z"
+  },
+  "after_user_edits_config": {
+    "model": "MacBookPro18,4",
+    "baselineRPM": 1900,
+    "fallRPMPerSecond": 40,
+    "cpuKeys": [
+      "Tp09",
+      "Tp0T",
+      "Tp01",
+      "Tp05",
+      "Tp0D",
+      "Tp0H",
+      "Tp0L",
+      "Tp0P",
+      "Tp0X",
+      "Tp0b"
+    ],
+    "gpuKeys": [
+      "Tg05",
+      "Tg0D",
+      "Tg0L",
+      "Tg0T"
+    ],
+    "curve": [
+      {
+        "fraction": 1,
+        "temperature": 43
+      },
+      {
+        "fraction": 1,
+        "temperature": 56
+      },
+      {
+        "fraction": 1,
+        "temperature": 65
+      },
+      {
+        "fraction": 1,
+        "temperature": 73
+      },
+      {
+        "fraction": 1,
+        "temperature": 85
+      }
+    ],
+    "palmKeys": [
+      "Ts0P",
+      "Ts1P"
+    ],
+    "palmCurve": [
+      {
+        "fraction": 0,
+        "temperature": 30
+      },
+      {
+        "fraction": 0.25,
+        "temperature": 33
+      },
+      {
+        "fraction": 0.5,
+        "temperature": 36
+      },
+      {
+        "fraction": 1,
+        "temperature": 40
+      }
+    ]
+  },
+  "current_custom_matches_saved": true
+}

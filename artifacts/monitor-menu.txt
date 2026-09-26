@@ -1,20 +1,23 @@
-80°C | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"
+73°C | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"
 ---
-Cooler · Custom curve active · Cooler
+Cooler · Custom curve active · Custom
 ---
 Apple automatic | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=automatic terminal=false refresh=true checked=false
 Quiet | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=quiet terminal=false refresh=true checked=false
 Balanced | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=balanced terminal=false refresh=true checked=false
-Cooler | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=cooler terminal=false refresh=true checked=true
-Cooler profile active. Saved for future restarts. | size=12 length=90
+Cooler | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=cooler terminal=false refresh=true checked=false
+Max cooling · until switched off | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=max terminal=false refresh=true checked=false
+Custom curve | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=custom terminal=false refresh=true checked=true
+Edit cooling curves… | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--edit-curves terminal=false refresh=true
+Last change: Custom curve active. Saved for future restarts. | size=12 length=100
 ---
-CPU  79.9°C
-GPU  70.1°C
-Palm rest  35.0°C
+CPU  73.3°C
+GPU  67.4°C
+Palm rest  34.0°C
 ---
-Left fan · Actual  5,555 RPM
+Left fan · Actual  5,730 RPM
 Target  5,779 RPM | size=12
-Right fan · Actual  5,882 RPM
+Right fan · Actual  6,236 RPM
 Target  6,241 RPM | size=12
 ---
 View cooling curves… | href=file:///Users/chetangoel/CodexProjects/cooler/artifacts/monitor-curves.html

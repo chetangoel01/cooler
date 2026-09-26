@@ -1,6 +1,6 @@
 #!/opt/homebrew/bin/python3
 # <xbar.title>Cooler</xbar.title>
-# <xbar.version>1.1</xbar.version>
+# <xbar.version>1.2</xbar.version>
 # <xbar.desc>Temperatures, fan speeds, curves, and cooling profiles.</xbar.desc>
 # <swiftbar.refreshOnOpen>true</swiftbar.refreshOnOpen>
 # <swiftbar.runInBash>false</swiftbar.runInBash>
@@ -26,12 +26,15 @@ LAUNCHCTL = os.environ.get('COOLER_LAUNCHCTL', '/bin/launchctl')
 CACHE = Path(os.environ.get("SWIFTBAR_PLUGIN_CACHE_PATH",
                             str(Path.home() / "Library/Caches/CoolerMonitor")))
 ACTION_STATE = Path.home() / 'Library/Caches/CoolerMonitor'
+USER_DATA = Path.home() / 'Library/Application Support/Cooler'
+EDITABLE = {'baselineRPM', 'curve', 'palmCurve'}
 
 # Fractions use each fan's available range above the profile's baseline.
 PROFILES = {
     'quiet': (1200, [(50,0),(60,.05),(70,.2),(80,.5),(90,1)], [(32,0),(35,.1),(38,.35),(40,1)]),
     'balanced': (1500, [(45,0),(55,.05),(65,.2),(75,.5),(85,.8),(90,1)], [(31,0),(34,.15),(37,.4),(40,1)]),
     'cooler': (1800, [(45,0),(55,.1),(65,.3),(75,.65),(85,1)], [(30,0),(33,.2),(36,.5),(40,1)]),
+    'max': (1800, [(10,1),(90,1)], [(10,1),(90,1)]),
 }
 
 
@@ -43,7 +46,42 @@ def profile_config(name, config):
 
 
 def profile_name(config):
-    return next((name.title() for name in PROFILES if profile_config(name,config)==config), 'Custom')
+    return next(('Max cooling' if name=='max' else name.title()
+                 for name in PROFILES if profile_config(name,config)==config), 'Custom')
+
+
+def custom_config(edited, config):
+    # Only the comfort controls are editable. Sensors and recovery stay installed.
+    if not isinstance(edited,dict) or set(edited)!=EDITABLE:
+        raise ValueError('A custom curve must contain only the baseline and the two curves.')
+    if not number(edited['baselineRPM']) or not 1200 <= edited['baselineRPM'] <= 2500:
+        raise ValueError('Baseline must be between 1,200 and 2,500 RPM.')
+    for key in ['curve','palmCurve']:
+        points=edited[key]
+        if not isinstance(points,list) or not 2 <= len(points) <= 20:
+            raise ValueError('Each curve needs 2 to 20 points.')
+        if not all(isinstance(p,dict) and set(p)=={'temperature','fraction'} and
+                   number(p['temperature']) and 10 <= p['temperature'] <= 90 and
+                   number(p['fraction']) and 0 <= p['fraction'] <= 1 for p in points):
+            raise ValueError('Curve points need temperatures from 10 to 90°C and demand from 0 to 100%.')
+        if points[-1]['fraction']!=1 or any(a['temperature']>=b['temperature'] or a['fraction']>b['fraction']
+                                          for a,b in zip(points,points[1:])):
+            raise ValueError('Temperatures must increase, demand cannot decrease, and the last point must reach 100%.')
+    return {**config,**edited}
+
+
+def editor_data():
+    config=read_json(SOURCE/'config.json')
+    result=subprocess.run([str(SOURCE/'cooler'),'probe'],capture_output=True,text=True,check=True,timeout=3)
+    values=json.loads(result.stdout)['values']
+    limits=[{'minimum':values[f'F{i}Mn'],'maximum':values[f'F{i}Mx']} for i in range(2)]
+    if not all(number(f['minimum']) and number(f['maximum']) and 1000 <= f['minimum'] < f['maximum'] <= 10000 for f in limits):
+        raise ValueError('Fan limits are unavailable. Reopen the editor when readings return.')
+    saved=read_json(USER_DATA/'custom.json')
+    if saved:
+        saved=custom_config(saved,config)
+    return {'current':config,'saved':saved or None,'limits':limits,
+            'presets':{name:profile_config(name,config) for name in ['quiet','balanced','cooler']}}
 
 
 def service_state():
@@ -57,9 +95,10 @@ def service_state():
         return None, None
 
 
-def action_script(name, config):
+def action_script(name, config, edited=None):
     """Fixed system operations; configuration is shell-quoted data, never code."""
-    proposal = None if name=='automatic' else profile_config(name,config)
+    proposal = (None if name=='automatic' else custom_config(edited,config) if name=='custom'
+                else profile_config(name,config))
     script = '''set -eu
 umask 077
 base='/Library/Application Support/Cooler'
@@ -116,7 +155,7 @@ def save_action(message):
     temporary.replace(ACTION_STATE/'action.json')
 
 
-def apply_profile(name):
+def apply_profile(name, edited=None):
     # Fixture overrides are read-only. Authenticated operations always use real paths.
     if SOURCE != INSTALLED or LAUNCHCTL != '/bin/launchctl':
         raise ValueError('Profile changes cannot use fixture overrides.')
@@ -125,30 +164,44 @@ def apply_profile(name):
         try:
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:
-            return
-        proposal = action_script(name,read_json(INSTALLED/'config.json'))
+            return {'ok':False,'message':'Another change is in progress. Try again when it finishes.'}
+        proposal = action_script(name,read_json(INSTALLED/'config.json'),edited)
+        # Stage the saved curve before authorization, but commit it only after installation succeeds.
+        saved=None
+        if name=='custom':
+            USER_DATA.mkdir(parents=True,exist_ok=True)
+            saved=USER_DATA/'custom.tmp'
+            saved.write_text(json.dumps(edited,allow_nan=False,indent=2)+'\n')
         save_action('Waiting for administrator approval…')
         program = 'on run argv\nreturn do shell script (item 1 of argv) with administrator privileges\nend run'
         result = subprocess.run(['/usr/bin/osascript','-e',program,proposal['script']],capture_output=True,text=True)
         if result.returncode:
+            if saved: saved.unlink(missing_ok=True)
             if '(-128)' in result.stderr:
-                save_action('Change cancelled. Previous selection kept.')
+                message='Change cancelled. Previous selection kept.'
             else:
-                save_action('Change failed: '+result.stderr.strip())
-            return
+                message='Change failed: '+result.stderr.strip()
+            save_action(message)
+            return {'ok':False,'message':message}
+        if saved: saved.replace(USER_DATA/'custom.json')
         save_action('Checking the new setting…')
         for _ in range(15):
             pid, disabled = service_state()
             status = read_json(INSTALLED/'status.json')
             if name=='automatic' and disabled and pid is None:
-                save_action('Apple automatic selected. Cooler will stay off after restart.')
-                return
+                message='Apple automatic selected. Cooler will stay off after restart.'
+                save_action(message)
+                return {'ok':True,'message':message}
             if name!='automatic' and pid and status.get('pid')==pid and status.get('mode')=='custom':
                 if read_json(INSTALLED/'config.json')==proposal['config']:
-                    save_action(name.title()+' profile active. Saved for future restarts.')
-                    return
+                    message=('Max cooling active until you switch modes.' if name=='max' else
+                             name.title()+' curve active. Saved for future restarts.')
+                    save_action(message)
+                    return {'ok':True,'message':message}
             time.sleep(1)
-        save_action('Setting saved; control is not yet confirmed. Check the status above.')
+        message='Setting saved; control is not yet confirmed. Check the SwiftBar status.'
+        save_action(message)
+        return {'ok':False,'message':message}
 
 
 def read_json(path):
@@ -281,14 +334,18 @@ def main():
         print("Waiting for a fresh controller update | size=12")
     print('---')
     selected = 'automatic' if disabled is True else profile_name(config).lower() if pid else None
-    descriptions = {'automatic':'Apple automatic','quiet':'Quiet','balanced':'Balanced','cooler':'Cooler'}
+    if selected=='max cooling': selected='max'
+    descriptions = {'automatic':'Apple automatic','quiet':'Quiet','balanced':'Balanced','cooler':'Cooler',
+                    'max':'Max cooling · until switched off'}
+    if read_json(USER_DATA/'custom.json'): descriptions['custom']='Custom curve'
     script_path = json.dumps(str(Path(__file__).resolve()))
     for name,title in descriptions.items():
         checked = str(selected==name).lower()
         print(f'{title} | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--apply-profile param2={name} terminal=false refresh=true checked={checked}')
+    print(f'Edit cooling curves… | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--edit-curves terminal=false refresh=true')
     action = read_json(ACTION_STATE/'action.json')
     if number(action.get('time')) and time.time()-action['time'] < 1800:
-        print(f"{line(action.get('message',''))} | size=12 length=90")
+        print(f"Last change: {line(action.get('message',''))} | size=12 length=100")
     print("---")
     for key, name in [("cpu", "CPU"), ("gpu", "GPU"), ("palm", "Palm rest")]:
         print(f"{name}  {temperature(temperatures[key])}")
@@ -319,12 +376,30 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Cooler menu and profile controls')
     actions = parser.add_mutually_exclusive_group()
-    actions.add_argument('--apply-profile',choices=['automatic',*PROFILES])
+    actions.add_argument('--apply-profile',choices=['automatic','custom',*PROFILES])
     actions.add_argument('--preview-profile',choices=['automatic',*PROFILES])
+    actions.add_argument('--apply-custom',type=Path)
+    actions.add_argument('--preview-custom',type=Path)
+    actions.add_argument('--editor-data',action='store_true')
+    actions.add_argument('--edit-curves',action='store_true')
     args = parser.parse_args()
-    if args.preview_profile:
-        print(json.dumps(action_script(args.preview_profile,read_json(SOURCE/'config.json'))))
-    elif args.apply_profile:
-        apply_profile(args.apply_profile)
-    else:
-        main()
+    try:
+        if args.preview_profile:
+            print(json.dumps(action_script(args.preview_profile,read_json(SOURCE/'config.json'))))
+        elif args.preview_custom:
+            print(json.dumps(action_script('custom',read_json(SOURCE/'config.json'),read_json(args.preview_custom))))
+        elif args.apply_custom:
+            print(json.dumps(apply_profile('custom',read_json(args.apply_custom))))
+        elif args.apply_profile:
+            edited=read_json(USER_DATA/'custom.json') if args.apply_profile=='custom' else None
+            print(json.dumps(apply_profile(args.apply_profile,edited)))
+        elif args.editor_data:
+            print(json.dumps(editor_data()))
+        elif args.edit_curves:
+            subprocess.run(['/usr/bin/open','-a',str(USER_DATA/'Cooler Curves.app')],check=True)
+        else:
+            main()
+    except (ValueError,OSError,KeyError,subprocess.SubprocessError) as error:
+        import sys
+        print(json.dumps({'ok':False,'message':str(error)}))
+        sys.exit(1)
