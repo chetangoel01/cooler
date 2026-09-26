@@ -1,0 +1,15 @@
+{
+  "started": "2026-09-26T20:55:34.008589+00:00",
+  "checks": [],
+  "observations": [],
+  "not_verified": [
+    "physical sleep/wake",
+    "full reboot",
+    "long-term temperature/noise comfort"
+  ],
+  "error": "Cooler did not return to healthy custom control",
+  "failure_recovery": {
+    "exit": 1,
+    "output": "2026-09-26T20:56:04Z Another Cooler instance owns fan control; stop the service first\n"
+  }
+}

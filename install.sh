@@ -21,6 +21,7 @@ if [ -x "$base/cooler" ]; then ./build/cooler auto; fi
 /usr/bin/install -o root -g wheel -m 644 com.chetangoel.cooler.plist "$plist"
 /usr/bin/install -o root -g wheel -m 755 uninstall.sh "$base/uninstall.sh"
 "$base/cooler" auto
+"$base/cooler" hardware-check > artifacts/hardware-check.json
 /bin/launchctl enable system/com.chetangoel.cooler
 /bin/launchctl bootstrap system "$plist"
 echo 'Cooler installed. Status: /Library/Application Support/Cooler/status.json'

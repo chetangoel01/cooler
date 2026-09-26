@@ -4,6 +4,10 @@ A personal background fan controller for **MacBookPro18,4 / M1 Max**. It keeps a
 
 Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network access. Swift and IOKit; build requires Xcode Command Line Tools.
 
+## Current deployment status
+
+As of September 26, 2026: built, with 15 replay checks passing. The earlier live test refused control because the target RPM readback did not match the request. Cooler is stopped and both fans were verified in automatic mode. The corrected request format and bounded readback wait are ready for a new administrator run of `sudo ./activate.sh`; live operation is not yet verified. Macs Fan Control automatic startup has been disabled.
+
 ## Cooling policy
 
 `config.json` is the source configuration. Installation copies it into `/Library/Application Support/Cooler/config.json`, owned by root. This is a starting comfort profile, not a promise that the laptop can maintain any particular temperature.
@@ -57,7 +61,7 @@ Removal preserves this repository, test reports, and `/var/log/cooler.log`. Re-e
 
 Only the two fan mode and target keys can be written. Hardware RPM limits are respected. No firmware changes, thermal-manager unlock keys, kernel extensions, or changes to macOS thermal services are used.
 
-Missing/invalid sensors, invalid fan limits, critical macOS thermal pressure, and failed or partial writes trigger automatic control. Both fans must be restored successfully; otherwise the controller exits and its watchdog retries. Three healthy samples are needed before recovery. Startup also restores automatic mode before applying a new curve. Restoration verifies the fan mode; macOS chooses the target RPM in automatic mode, so that target is left untouched.
+Missing/invalid sensors, invalid fan limits, critical macOS thermal pressure, and failed or partial writes trigger automatic control. Both fans must be restored successfully; otherwise the controller exits and its watchdog retries. Three healthy samples are needed before recovery. Startup also restores automatic mode before applying a new curve. Writes use a fresh SMC request and allow up to one second for readback to settle. Installation briefly requests full fan speed to verify control, then restores automatic mode before starting the service. Restoration verifies the fan mode; macOS chooses the target RPM in automatic mode, so that target is left untouched.
 
 An independent watchdog watches a pipe from the controller. If it exits or stalls for ten awake seconds, the watchdog restores automatic control. On a stall it first kills the controller to prevent competing writes. macOS launchd restarts failed processes. If the watchdog itself exits, the controller also restores automatic mode and exits. Duplicate controllers are rejected by an exclusive lock.
 

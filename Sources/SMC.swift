@@ -89,8 +89,10 @@ final class SMC {
     func writeFan(_ id: Int, mode: Bool, value: Double) throws {
         guard (0...1).contains(id), value.isFinite else { throw CoolerError("Invalid fan write") }
         let key = "F\(id)\(mode ? "Md" : "Tg")"
-        var input = try read(key); input.key = code(key); input.command = 6
-        let type = text(input.info.type)
+        let current = try read(key)
+        var input = SMCData()
+        input.key = code(key); input.command = 6; input.info.size = current.info.size
+        let type = text(current.info.type)
         if mode {
             guard type == "ui8 ", input.info.size == 1, value == 0 || value == 1 else { throw CoolerError("Invalid mode write") }
             input.bytes.0 = UInt8(value)
@@ -101,8 +103,15 @@ final class SMC {
             input.bytes.2 = UInt8((bits >> 16) & 255); input.bytes.3 = UInt8((bits >> 24) & 255)
         }
         _ = try call(input)
-        let actual = try self.value(key)
-        guard abs(actual - value) < 2 else { throw CoolerError("Write readback failed for \(key): \(actual)") }
+        // Some SMC keys expose their old value briefly after a successful write.
+        // Poll the readback, never retry an unverified mutation indefinitely.
+        var actual = try self.value(key)
+        for _ in 0..<20 {
+            if abs(actual - value) < (mode ? 0.5 : 2) || (mode && value == 0 && actual == 3) { return }
+            usleep(50_000)
+            actual = try self.value(key)
+        }
+        throw CoolerError("Write readback failed for \(key): requested \(value), observed \(actual)")
     }
     func automatic() throws {
         var failures: [String] = []

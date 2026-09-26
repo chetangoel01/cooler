@@ -165,8 +165,33 @@ do {
     case "probe": try probe()
     case "auto":
         try requireRoot(); try requireHardware()
-        let fd = try acquireLock(); defer { close(fd) }
+        var fd: Int32 = -1
+        // bootout returns before the old process has necessarily released its lock.
+        for _ in 0..<50 {
+            if let acquired = try? acquireLock() { fd = acquired; break }
+            usleep(100_000)
+        }
+        guard fd >= 0 else { throw CoolerError("Cooler is still running; stop the service first") }
+        defer { close(fd) }
         try SMC().automatic(); print("Automatic fan control restored")
+    case "hardware-check":
+        try requireRoot(); try requireHardware()
+        let fd = try acquireLock(); defer { close(fd) }
+        guard try !conflict() else { throw CoolerError("Quit the other fan controller first") }
+        let smc = try SMC()
+        defer { do { try smc.automatic() } catch { log("Restoration failed: \(error)") } }
+        for id in 0..<2 {
+            try smc.writeFan(id, mode: true, value: 1)
+            try smc.writeFan(id, mode: false, value: try smc.value("F\(id)Mx"))
+        }
+        usleep(2_000_000)
+        var values: [String:Double] = [:]
+        for id in 0..<2 {
+            for suffix in ["Md", "Tg", "Ac", "Mx"] {
+                let key = "F\(id)\(suffix)"; values[key] = try smc.value(key)
+            }
+        }
+        emit(values)
     case "watch":
         guard args.count == 2, let pid = Int32(args[1]) else { throw CoolerError("watch requires a parent PID") }
         try watchdog(pid)
