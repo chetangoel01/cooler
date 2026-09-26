@@ -109,9 +109,8 @@ final class SMC {
         for id in 0..<2 {
             do { try writeFan(id, mode: true, value: 0) }
             catch { failures.append(String(describing: error)); continue }
-            // Clear a lingering manual target only after relinquishing manual mode.
-            do { try writeFan(id, mode: false, value: 0) }
-            catch { failures.append(String(describing: error)) }
+            // In automatic mode macOS owns the target RPM. Do not write or
+            // compare it to zero: this machine immediately publishes its own target.
         }
         if !failures.isEmpty { throw CoolerError(failures.joined(separator: "; ")) }
     }

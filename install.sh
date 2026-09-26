@@ -14,7 +14,7 @@ base='/Library/Application Support/Cooler'
 if /bin/launchctl print system/com.chetangoel.cooler >/dev/null 2>&1; then
   /bin/launchctl bootout system/com.chetangoel.cooler
 fi
-if [ -x "$base/cooler" ]; then "$base/cooler" auto; fi
+if [ -x "$base/cooler" ]; then ./build/cooler auto; fi
 /usr/bin/install -d -o root -g wheel -m 755 "$base"
 /usr/bin/install -o root -g wheel -m 755 build/cooler "$base/cooler"
 /usr/bin/install -o root -g wheel -m 644 config.json "$base/config.json"
