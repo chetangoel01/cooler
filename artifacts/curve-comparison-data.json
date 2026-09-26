@@ -1,0 +1,244 @@
+{
+  "model": "MacBookPro18,4",
+  "config": {
+    "model": "MacBookPro18,4",
+    "baselineRPM": 1800,
+    "fallRPMPerSecond": 40,
+    "cpuKeys": [
+      "Tp09",
+      "Tp0T",
+      "Tp01",
+      "Tp05",
+      "Tp0D",
+      "Tp0H",
+      "Tp0L",
+      "Tp0P",
+      "Tp0X",
+      "Tp0b"
+    ],
+    "gpuKeys": [
+      "Tg05",
+      "Tg0D",
+      "Tg0L",
+      "Tg0T"
+    ],
+    "curve": [
+      {
+        "temperature": 45,
+        "fraction": 0
+      },
+      {
+        "temperature": 55,
+        "fraction": 0.1
+      },
+      {
+        "temperature": 65,
+        "fraction": 0.3
+      },
+      {
+        "temperature": 75,
+        "fraction": 0.65
+      },
+      {
+        "temperature": 85,
+        "fraction": 1
+      }
+    ],
+    "palmKeys": [
+      "Ts0P",
+      "Ts1P"
+    ],
+    "palmCurve": [
+      {
+        "temperature": 30,
+        "fraction": 0
+      },
+      {
+        "temperature": 33,
+        "fraction": 0.2
+      },
+      {
+        "temperature": 36,
+        "fraction": 0.5
+      },
+      {
+        "temperature": 40,
+        "fraction": 1
+      }
+    ]
+  },
+  "samples": [
+    {
+      "source": "apple-auto-before.json",
+      "time": "2026-09-26T20:51:01Z",
+      "cpu": 77.11840057373047,
+      "gpu": 69.91866302490234,
+      "palm": 30.99609375,
+      "chip_temperature": 77.11840057373047,
+      "apple_target_rpm": [
+        2317,
+        2502
+      ],
+      "apple_actual_rpm": [
+        2334.918212890625,
+        2520.77880859375
+      ],
+      "minimum_rpm": [
+        1200,
+        1200
+      ],
+      "maximum_rpm": [
+        5779,
+        6241
+      ],
+      "cooler_curve_rpm": [
+        4681,
+        5016
+      ]
+    },
+    {
+      "source": "after-initial-install.json",
+      "time": "2026-09-26T20:54:43Z",
+      "cpu": 82.0182113647461,
+      "gpu": 70.66441345214844,
+      "palm": 31.99609375,
+      "chip_temperature": 82.0182113647461,
+      "apple_target_rpm": [
+        2317,
+        2502
+      ],
+      "apple_actual_rpm": [
+        2305.25390625,
+        2494.18017578125
+      ],
+      "minimum_rpm": [
+        1200,
+        1200
+      ],
+      "maximum_rpm": [
+        5779,
+        6241
+      ],
+      "cooler_curve_rpm": [
+        5364,
+        5778
+      ]
+    },
+    {
+      "source": "current-hardware.json",
+      "time": "2026-09-26T20:56:02Z",
+      "cpu": 69.72078704833984,
+      "gpu": 69.18516540527344,
+      "palm": 31.99609375,
+      "chip_temperature": 69.72078704833984,
+      "apple_target_rpm": [
+        2317,
+        2502
+      ],
+      "apple_actual_rpm": [
+        2336.009033203125,
+        2501.372314453125
+      ],
+      "minimum_rpm": [
+        1200,
+        1200
+      ],
+      "maximum_rpm": [
+        5779,
+        6241
+      ],
+      "cooler_curve_rpm": [
+        3651,
+        3866
+      ]
+    },
+    {
+      "source": "after-failed-live-check.json",
+      "time": "2026-09-26T20:57:25Z",
+      "cpu": 72.48173522949219,
+      "gpu": 68.31072998046875,
+      "palm": 31.99609375,
+      "chip_temperature": 72.48173522949219,
+      "apple_target_rpm": [
+        2317,
+        2502
+      ],
+      "apple_actual_rpm": [
+        2317.5419921875,
+        2492.401611328125
+      ],
+      "minimum_rpm": [
+        1200,
+        1200
+      ],
+      "maximum_rpm": [
+        5779,
+        6241
+      ],
+      "cooler_curve_rpm": [
+        4036,
+        4295
+      ]
+    },
+    {
+      "source": "after-stall-failure.json",
+      "time": "2026-09-26T21:13:52Z",
+      "cpu": 80.46825408935547,
+      "gpu": 74.59109497070312,
+      "palm": 31.99609375,
+      "chip_temperature": 80.46825408935547,
+      "apple_target_rpm": [
+        2317,
+        2502
+      ],
+      "apple_actual_rpm": [
+        2307.766357421875,
+        2498.005126953125
+      ],
+      "minimum_rpm": [
+        1200,
+        1200
+      ],
+      "maximum_rpm": [
+        5779,
+        6241
+      ],
+      "cooler_curve_rpm": [
+        5148,
+        5537
+      ]
+    },
+    {
+      "source": "live-report.json/observations/1",
+      "time": "2026-09-26T21:21:48Z",
+      "cpu": 71.65868377685547,
+      "gpu": 65.45965576171875,
+      "palm": 30.99609375,
+      "chip_temperature": 71.65868377685547,
+      "apple_target_rpm": [
+        2317,
+        2502
+      ],
+      "apple_actual_rpm": [
+        3126.275390625,
+        3169.516357421875
+      ],
+      "minimum_rpm": [
+        1200,
+        1200
+      ],
+      "maximum_rpm": [
+        5779,
+        6241
+      ],
+      "cooler_curve_rpm": [
+        3921,
+        4167
+      ]
+    }
+  ],
+  "reference_time": "2026-09-26T20:51:01Z",
+  "replay_verified": true,
+  "apple_curve_known": false,
+  "scope": "Recorded automatic-mode targets versus configured Cooler targets at matching temperatures; not a controlled cooling or noise benchmark."
+}

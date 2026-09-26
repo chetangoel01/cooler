@@ -28,6 +28,8 @@ The palm-rest curve independently requests 0% of the range above the baseline at
 
 CPU/GPU sensor mapping follows Stats. `Ts0P`/`Ts1P` are community-identified palm-rest sensors; they do **not** measure the entire underside. These labels and readings should be checked against comfort in everyday use. See [source attribution](THIRD_PARTY_NOTICES.md).
 
+See the [comparison with recorded Apple automatic targets](artifacts/curve-comparison.png) and [data and limits](artifacts/curve-comparison-notes.md). This compares our configured curve with six saved automatic-mode snapshots, not a recovered Apple curve or a controlled temperature/noise benchmark.
+
 ## Install, inspect, change, remove
 
 Quit Macs Fan Control first and turn off its automatic startup. Keep it installed if desired, but do not run two fan controllers together. Cooler detects Macs Fan Control, Stats, TG Pro, smcFanControl, and macfan by process name, relinquishes control, and waits while any runs. This list cannot detect every possible tool.
