@@ -1,0 +1,25 @@
+{
+  "verified_at": "2026-09-26T21:38:45.661458+00:00",
+  "status": {
+    "cpu": 79.54544067382812,
+    "gpu": 65.25662994384766,
+    "mode": "custom",
+    "palm": 28.99609375,
+    "pid": 94458,
+    "reason": "Cooling curve active",
+    "restoredFans": [],
+    "targets": [
+      5019,
+      5393
+    ],
+    "time": "2026-09-26T21:38:43Z"
+  },
+  "launchd_pid": 94458,
+  "source_and_installed_binary_sha256": "8169f6af36fe80ea01d375cecb63dbfd458091b317fc5439288ff2899bbd9e74",
+  "live_checks_passed": 11,
+  "not_verified": [
+    "physical sleep/wake",
+    "full reboot",
+    "long-term temperature/noise comfort"
+  ]
+}

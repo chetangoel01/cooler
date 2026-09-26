@@ -6,7 +6,9 @@ Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network
 
 ## Current deployment status
 
-As of September 26, 2026: fan control, physical fan response, normal termination, and crash recovery passed on this Mac. The live suite then exposed a test race: it accepted a previous process’s fresh status and paused its replacement before initialization. Status now includes the owning PID, and the suite requires it to match the current service. All 15 replay checks and four real process/signal checks pass without hardware writes. Cooler is stopped and both fans were verified in automatic mode; the complete corrected live suite still needs `sudo ./activate.sh`. Macs Fan Control automatic startup has been disabled.
+Deployed September 26, 2026 and verified running with the custom curve. All **11 on-device checks passed**, including physical fan response, normal termination, forced crash, stalled controller, watchdog loss, restoration to automatic control, service restart, and installation permissions. The 15 replay checks and four process/signal checks also passed. The running process matches its fresh status, and the installed binary matches the verified build. Macs Fan Control automatic startup is disabled.
+
+Evidence: [live report](artifacts/live-report.json) and [deployment verification](artifacts/deployment-verification.json). Actual sleep/wake, a full reboot, and everyday temperature/noise comfort remain unverified; boot startup is configured through launchd.
 
 ## Cooling policy
 
