@@ -24,7 +24,7 @@ def wait_active(old=None, timeout=30):
             current = pid()
             status = json.loads((base/'status.json').read_text())
             fresh = datetime.datetime.now(datetime.timezone.utc).timestamp()-datetime.datetime.fromisoformat(status['time'].replace('Z','+00:00')).timestamp() < 5
-            if current and current != old and status['mode'] == 'custom' and fresh:
+            if current and current != old and status.get('pid') == current and status['mode'] == 'custom' and fresh:
                 return current, status
         except (subprocess.CalledProcessError, ValueError, KeyError, OSError):
             pass
@@ -37,6 +37,8 @@ def check(name, ok, details=None):
     if not ok: raise RuntimeError(name)
 
 success = False
+log_path = pathlib.Path('/var/log/cooler.log')
+log_start = log_path.stat().st_size if log_path.exists() else 0
 try:
     if os.geteuid() != 0: raise RuntimeError('Run with sudo')
     current, status = wait_active()
@@ -58,7 +60,9 @@ try:
     time.sleep(2)
     current,status = wait_active(old)
     check('Watchdog failure triggers controller recovery',current != old)
-    log = pathlib.Path('/var/log/cooler.log').read_text()
+    with log_path.open() as stream:
+        stream.seek(log_start)
+        log = stream.read()
     check('Watchdog recorded automatic restoration', 'Watchdog restored automatic fan control' in log)
     check('Stall detector fired', 'Controller heartbeat timed out' in log)
     command('/bin/launchctl','bootout',service)
@@ -75,6 +79,9 @@ try:
     success = True
 except Exception as e:
     report['error'] = str(e)
+    report['last_status'] = json.loads((base/'status.json').read_text()) if (base/'status.json').exists() else None
+    state = subprocess.run(['/bin/launchctl','print',service],text=True,capture_output=True)
+    report['launchd_state'] = state.stdout+state.stderr
     print('FAILED: '+str(e), flush=True)
 finally:
     if not success:

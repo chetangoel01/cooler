@@ -6,7 +6,7 @@ Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network
 
 ## Current deployment status
 
-As of September 26, 2026: built, with 15 replay checks passing. The earlier live test refused control because the target RPM readback did not match the request. Cooler is stopped and both fans were verified in automatic mode. The corrected request format and bounded readback wait are ready for a new administrator run of `sudo ./activate.sh`; live operation is not yet verified. Macs Fan Control automatic startup has been disabled.
+As of September 26, 2026: fan control, physical fan response, normal termination, and crash recovery passed on this Mac. The live suite then exposed a test race: it accepted a previous process’s fresh status and paused its replacement before initialization. Status now includes the owning PID, and the suite requires it to match the current service. All 15 replay checks and four real process/signal checks pass without hardware writes. Cooler is stopped and both fans were verified in automatic mode; the complete corrected live suite still needs `sudo ./activate.sh`. Macs Fan Control automatic startup has been disabled.
 
 ## Cooling policy
 
@@ -32,6 +32,7 @@ Quit Macs Fan Control first and turn off its automatic startup. Keep it installe
 cd /Users/chetangoel/CodexProjects/cooler
 ./build.sh
 python3 tests/e2e.py
+python3 tests/lifecycle.py
 ./build/cooler check config.json
 sudo ./activate.sh
 ```
@@ -45,7 +46,7 @@ launchctl print system/com.chetangoel.cooler
 tail /var/log/cooler.log
 ```
 
-Status updates every two seconds. Logs record mode transitions and failures, not continuous readings. After a macOS update, check that the status timestamp is fresh and the mode is `custom`; this machine currently runs macOS 27.0 build 26A428, outside Macs Fan Control's published support list at implementation time.
+Status includes the PID that wrote it and updates every two seconds. A fresh file alone is not proof that a newly restarted process is ready. Logs record mode transitions and failures, not continuous readings. After a macOS update, check that the status timestamp is fresh and the mode is `custom`; this machine currently runs macOS 27.0 build 26A428, outside Macs Fan Control's published support list at implementation time.
 
 To tune the profile, edit the source `config.json`, run `check` and the replay tests, then rerun `sudo ./install.sh`. Do not edit the installed file in place; the running service reads its configuration at startup.
 
@@ -73,6 +74,9 @@ These are software recovery measures, not firmware guarantees. Simultaneously ki
 
 The failure inventory was written before implementation: incorrect SMC layout/types; non-finite, missing, or partial readings; invalid limits; hidden CPU/GPU hotspots; fan oscillation; partial writes; process crashes/stalls; sleep/wake; competing controllers; wrong hardware; malformed configuration; duplicate processes; unsafe installation permissions; and removal leaving fans in manual mode.
 
-Read-only probe and dry-run results, plus the replay report, live in `artifacts/`. The baseline was captured while Macs Fan Control held both fans at maximum RPM. It is **not** a baseline of Apple's default behavior and cannot demonstrate a cooling improvement over automatic control.
+`tests/lifecycle.py` runs the compiled dry-run CLI and its real watchdog under normal termination, SIGKILL, SIGSTOP, and watchdog loss. It uses the same supervision code and real process pipes/signals, but its recovery callback only logs; it never writes fans.
+
+Read-only probe and dry-run results, plus replay and lifecycle reports, live in `artifacts/`. The baseline was captured while Macs Fan Control held both fans at maximum RPM. It is **not** a baseline of Apple's default behavior and cannot demonstrate a cooling improvement over automatic control.
 
 No unit tests were added. On-device lifecycle checks are in `tests/live.py`; `activate.sh` runs them after installation. They require administrator privileges and briefly interrupt the running service. Run only when Cooler is the sole fan controller. They record actual RPM, exercise normal termination, controller crash/stall, watchdog failure, explicit restoration to auto, and restart. A failure stops Cooler and attempts to restore automatic control. Reports distinguish simulated checks from hardware checks.
+

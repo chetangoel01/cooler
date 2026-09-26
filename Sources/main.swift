@@ -51,10 +51,8 @@ func probe() throws {
     struct Probe: Encodable { let model: String; let time: String; let values: [String:Double] }
     emit(Probe(model: machineModel(), time: ISO8601DateFormatter().string(from: Date()), values: values))
 }
-func watchdog(_ parent: pid_t) throws {
-    try requireRoot(); try requireHardware()
+func watchdog(_ parent: pid_t, restore: () throws -> Void) throws {
     guard parent > 1, getppid() == parent else { throw CoolerError("Watchdog requires its controller parent") }
-    let smc = try SMC()
     FileHandle.standardOutput.write(Data("ready\n".utf8))
     var ownsFans = false
     var last = ProcessInfo.processInfo.systemUptime
@@ -76,8 +74,7 @@ func watchdog(_ parent: pid_t) throws {
     }
     if ownsFans {
         // A root daemon restart also restores automatic mode before taking control.
-        try smc.automatic()
-        log("Watchdog restored automatic fan control")
+        try restore()
     }
 }
 func run(_ configPath: String, dry: Bool, samples: Int) throws {
@@ -91,19 +88,19 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
     if !dry {
         try requireRoot(); try secureConfig(configPath)
         lockFD = try acquireLock()
-        let process = Process(), beats = Pipe(), ready = Pipe()
-        process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
-        process.arguments = ["watch", String(getpid())]
-        process.standardInput = beats; process.standardOutput = ready
-        try process.run()
-        // No hardware writes before watchdog initialization succeeds.
-        let response = ready.fileHandleForReading.availableData
-        guard String(data: response, encoding: .utf8) == "ready\n" else { throw CoolerError("Watchdog failed to start") }
-        watchdogProcess = process; heartbeat = beats.fileHandleForWriting
-        beats.fileHandleForReading.closeFile()
-        // Recover a manual setting left by an earlier crash, but respect other tools.
-        if try !conflict() { try smc.automatic() }
     }
+    let process = Process(), beats = Pipe(), ready = Pipe()
+    process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+    process.arguments = [dry ? "watch-dry" : "watch", String(getpid())]
+    process.standardInput = beats; process.standardOutput = ready
+    try process.run()
+    // No hardware writes or healthy status before watchdog initialization succeeds.
+    let response = ready.fileHandleForReading.availableData
+    guard String(data: response, encoding: .utf8) == "ready\n" else { throw CoolerError("Watchdog failed to start") }
+    watchdogProcess = process; heartbeat = beats.fileHandleForWriting
+    beats.fileHandleForReading.closeFile()
+    // Recover a manual setting left by an earlier crash, but respect other tools.
+    if !dry { if try !conflict() { try smc.automatic() } }
     defer {
         if !dry && controller.ownsFans {
             do { try smc.automatic(); log("Restored automatic fan control") }
@@ -127,14 +124,15 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
             if ProcessInfo.processInfo.thermalState == .critical { frame.error = "macOS reports critical thermal pressure" }
         }
         var decision = try controller.step(frame, write: { id, rpm in
+            try heartbeat?.write(contentsOf: Data([1]))
             if !dry {
-                try heartbeat?.write(contentsOf: Data([1]))
                 if try smc.value("F\(id)Md") != 1 { try smc.writeFan(id, mode: true, value: 1) }
                 try smc.writeFan(id, mode: false, value: rpm)
             }
         }, restore: { if !dry { try smc.automatic() } })
         decision.time = ISO8601DateFormatter().string(from: Date())
-        if !dry { try heartbeat?.write(contentsOf: Data([controller.ownsFans ? 1 : 0])) }
+        decision.pid = getpid()
+        try heartbeat?.write(contentsOf: Data([controller.ownsFans ? 1 : 0]))
         if dry { emit(decision) }
         else {
             let data = try encoder.encode(decision)
@@ -194,7 +192,15 @@ do {
         emit(values)
     case "watch":
         guard args.count == 2, let pid = Int32(args[1]) else { throw CoolerError("watch requires a parent PID") }
-        try watchdog(pid)
+        try requireRoot(); try requireHardware()
+        let smc = try SMC()
+        try watchdog(pid) {
+            try smc.automatic()
+            log("Watchdog restored automatic fan control")
+        }
+    case "watch-dry":
+        guard args.count == 2, let pid = Int32(args[1]) else { throw CoolerError("watch-dry requires a parent PID") }
+        try watchdog(pid) { log("Dry-run watchdog restored automatic control") }
     case "check":
         guard args.count == 2 else { throw CoolerError("check requires a configuration path") }
         try requireHardware()

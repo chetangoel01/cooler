@@ -40,6 +40,7 @@ struct Frame: Codable {
 }
 struct Decision: Codable {
     var time: String?
+    var pid: Int32?
     var mode: String
     var reason: String
     var cpu: Double?
