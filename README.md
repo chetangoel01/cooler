@@ -4,7 +4,7 @@ A personal background fan controller for **MacBookPro18,4 / M1 Max**. It keeps a
 
 Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network access. Swift and IOKit; build requires Xcode Command Line Tools.
 
-An optional **SwiftBar monitor** now provides a menu-bar temperature, a dropdown with readings, and a local curve viewer. The monitor uses the existing Homebrew Python 3 installation; the controller itself still has no external runtime dependencies.
+An optional **SwiftBar plugin** provides a menu-bar temperature, readings, profile controls, and a local curve viewer. It uses the existing Homebrew Python 3 installation; the controller itself still has no external runtime dependencies.
 
 ## Current deployment status
 
@@ -14,7 +14,7 @@ Evidence: [live report](artifacts/live-report.json) and [deployment verification
 
 ## Cooling policy
 
-`config.json` is the source configuration. Installation copies it into `/Library/Application Support/Cooler/config.json`, owned by root. This is a starting comfort profile, not a promise that the laptop can maintain any particular temperature.
+`config.json` is the original **Cooler** profile. Installation copies it into `/Library/Application Support/Cooler/config.json`, owned by root. SwiftBar profile selection replaces the installed configuration; reinstalling the controller resets it to the source profile. These are starting comfort profiles, not a promise that the laptop can maintain any particular temperature.
 
 | CPU or GPU temperature | Left fan | Right fan |
 |---|---:|---:|
@@ -68,7 +68,19 @@ Removal preserves this repository, test reports, and `/var/log/cooler.log`. Re-e
 
 **Click the fan icon and CPU temperature in the macOS menu bar.** The dropdown shows CPU, GPU, and palm-rest readings plus both fans' actual RPM and requested targets. It refreshes every five seconds and when opened. **View cooling curves…** opens a local page with CPU/GPU and palm-rest graphs and exact RPM tables. Those graphs describe the installed profile, not temperature history; reopen the page after changing the profile.
 
-The monitor reads the installed status and configuration and calls only `cooler probe`. It never writes fans, changes the profile, or requires administrator access. SwiftBar does not trigger Cooler's competing-controller check. Status older than ten seconds is marked stale and its temperatures/targets are hidden. Missing sensor reads are displayed as unavailable. When Cooler yields to another controller, the menu says it is paused; Apple automatic is shown only when both hardware modes agree.
+Reading the menu needs no administrator access. Refreshes use read-only status, configuration, service queries, and `cooler probe`. SwiftBar does not trigger Cooler's competing-controller check. Controller status older than ten seconds or belonging to another process cannot mark custom control healthy. Temperatures come from the live probe, including while Cooler is off; missing reads fall back to fresh controller status. When Cooler yields to another controller, the menu says it is paused; Apple automatic is shown only when both hardware modes agree.
+
+Choose **Apple automatic**, **Quiet**, **Balanced**, or **Cooler** directly from the menu. The checkmark indicates the selected setting; the status line confirms whether it is currently active. macOS asks for administrator authorization when applying a change (it may reuse a recent authorization). Cancelling keeps the previous setting. Cooler preserves the original curve shown above.
+
+| Profile | Baseline | Targets at 75°C, left / right | Full speed by |
+|---|---:|---:|---:|
+| Quiet | 1,200 RPM | 2,803 / 2,964 RPM | 90°C |
+| Balanced | 1,500 RPM | 3,640 / 3,871 RPM | 90°C |
+| Cooler | 1,800 RPM | 4,386 / 4,687 RPM | 85°C |
+
+The table shows CPU/GPU requests before palm demand or retained speed during cooldown. Each preset has its own palm curve, with full speed at 40°C. Hardware RPM bounds, gradual slowdown, conflict detection, and the existing watchdog remain in effect. Quiet/Balanced comfort and noise have not been measured yet.
+
+Changes are serialized and the proposed configuration is validated by the installed controller before interrupting control. Applying a profile stops Cooler, restores Apple automatic, atomically installs the protected configuration, then enables and starts the existing service. Failure after stopping restores the prior configuration and attempts to leave fans on Apple automatic with Cooler disabled. The menu reports errors and confirms a new process before claiming the preset is active. **Apple automatic** stops and persistently disables Cooler; selecting a preset enables it again. Both choices survive restart. There is no password storage, passwordless sudo rule, or additional privileged helper. The standard macOS authorization API runs fixed service/configuration operations only when you select a control.
 
 Installed locations:
 
@@ -90,7 +102,11 @@ python3 tests/monitor.py
 
 Open SwiftBar once and select that Plugins folder. Allow SwiftBar in **System Settings → Menu Bar** if its item is hidden. The plugin is a regular copy, so repeat the `install` command after editing its source. The login agent takes effect on the next login. To remove just the monitor, quit SwiftBar, remove its plugin and the login plist, and remove SwiftBar if no other plugins use it; Cooler continues controlling the fans independently.
 
-`tests/monitor.py` runs the complete plugin against controlled files and a fake hardware probe, then performs a real read-only run. It checks readings, curve configuration, automatic/yielded modes, stale/missing/corrupt status, a stalled probe, and the read-only command boundary. Rerunnable evidence is saved in `artifacts/monitor-report.json`, `artifacts/monitor-menu.txt`, and `artifacts/monitor-curves.html`. No unit tests were added.
+`tests/monitor.py` runs the complete plugin against controlled files and fake read-only hardware/service queries, then performs a real read-only run. It checks readings, curve configuration, automatic/yielded modes, old process status, stale/missing/corrupt status, a stalled probe, live temperatures with the daemon stopped, and the read-only refresh boundary. Rerunnable evidence is saved in `artifacts/monitor-report.json`, `artifacts/monitor-menu.txt`, and `artifacts/monitor-curves.html`.
+
+`python3 tests/profiles.py` exercises the full exported action scripts with simulated launchd/SMC operations and the real controller's configuration validation/replay. It checks preset ordering across chip/palm temperatures, restoration of the original Cooler preset, validation/stop/start failures, automatic mode persistence, cancelled authorization, and overlapping actions. The report is `artifacts/profiles-report.json`. It performs no real fan writes or administrator prompts. `monitor/cooler.5s.py --preview-profile balanced` prints the exact proposed configuration and shell operations without applying them. No unit tests were added.
+
+A separate live check successfully used the installed action and native authorization to reapply **Cooler**, confirming a new healthy controller process, unchanged curve values, protected configuration, manual fan modes, bounded targets, and both fans spinning. See `artifacts/profile-live-check.json`. The SwiftBar click itself, Apple automatic as a final selection, Quiet/Balanced everyday comfort, and reboot persistence remain unverified on-device; their command/configuration behavior has process-level coverage.
 
 Deployment also confirmed successful execution inside SwiftBar every five seconds. Visual menu/graph review remains unverified: app automation repeatedly reopened SwiftBar's recovery notice, and the preview browser disallowed local file URLs. Login startup is configured, not reboot-tested.
 

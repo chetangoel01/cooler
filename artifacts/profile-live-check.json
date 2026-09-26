@@ -1,0 +1,55 @@
+{
+  "before_status": {
+    "cpu": 72.25167846679688,
+    "gpu": 67.41407012939453,
+    "mode": "custom",
+    "palm": 34.99609375,
+    "pid": 94458,
+    "reason": "Cooling curve active",
+    "restoredFans": [],
+    "targets": [
+      4425,
+      4754
+    ],
+    "time": "2026-09-26T23:17:50Z"
+  },
+  "before_config_sha256": "5a7fd11aadcb142029c5270bc84996a30300e498ec7965965f3927b1cb130e0f",
+  "requested_profile": "cooler",
+  "completed": true,
+  "verified_at": "2026-09-26T23:19:03.138548+00:00",
+  "after_status": {
+    "cpu": 75.30165100097656,
+    "gpu": 68.59524536132812,
+    "mode": "custom",
+    "palm": 34.99609375,
+    "pid": 58170,
+    "reason": "Cooling curve active",
+    "restoredFans": [],
+    "targets": [
+      5068,
+      5473
+    ],
+    "time": "2026-09-26T23:19:02Z"
+  },
+  "service_pid": 58170,
+  "profile_values_preserved": true,
+  "configuration_protected": true,
+  "fan_readings": {
+    "F0Ac": 5145.50341796875,
+    "F0Md": 1,
+    "F0Mn": 1200,
+    "F0Mx": 5779,
+    "F0Tg": 5068,
+    "F1Ac": 5529.61376953125,
+    "F1Md": 1,
+    "F1Mn": 1200,
+    "F1Mx": 6241,
+    "F1Tg": 5473
+  },
+  "not_verified": [
+    "SwiftBar menu click itself",
+    "Apple automatic as a final selection",
+    "Quiet/Balanced everyday comfort",
+    "Reboot"
+  ]
+}

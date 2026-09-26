@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "All three presets validate, install, restart, and keep protected file modes",
+    "Quiet \u2264 Balanced \u2264 Cooler across CPU/GPU and palm ranges; full speed by 90\u00b0C chip or 40\u00b0C palm",
+    "Apple automatic stops and disables Cooler while preserving the profile",
+    "Validation/stop/start failures preserve configuration; failed startup leaves Apple automatic",
+    "Unknown actions are rejected before authorization",
+    "Cancelled authorization keeps the installed configuration unchanged",
+    "Overlapping actions are serialized before authorization"
+  ],
+  "passed": 7,
+  "hardware_writes": false,
+  "native_authorization_tested": false
+}

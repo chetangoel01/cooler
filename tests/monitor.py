@@ -33,16 +33,27 @@ if (p / "stall").exists(): time.sleep(10)
 print((p / "probe.json").read_text())
 ''')
     probe.chmod(0o755)
+    launchctl = source / 'launchctl'
+    launchctl.write_text('''#!/opt/homebrew/bin/python3
+import pathlib, sys
+p=pathlib.Path(__file__).parent
+disabled=(p/'disabled').exists()
+if sys.argv[1]=='print-disabled': print('"com.chetangoel.cooler" => '+('disabled' if disabled else 'enabled'))
+elif disabled: sys.exit(113)
+else: print('pid = 123')
+''')
+    launchctl.chmod(0o755)
     values = {"F0Ac": 2010, "F1Ac": 2110, "F0Mx": 5779, "F1Mx": 6241,
               "F0Mn": 1200, "F1Mn": 1200, "F0Md": 1, "F1Md": 1}
     (source / "probe.json").write_text(json.dumps({"values": values}))
-    status = {"cpu": 55, "gpu": 49, "palm": 29, "mode": "custom",
+    status = {"pid":123, "cpu": 55, "gpu": 49, "palm": 29, "mode": "custom",
               "reason": "Cooling curve active", "targets": [2198, 2244],
               "time": dt.datetime.now(dt.timezone.utc).isoformat()}
 
     def run():
         result = subprocess.run([str(PLUGIN)], text=True, capture_output=True, timeout=6,
                                 env={**os.environ, "COOLER_HOME": str(source),
+                                     "COOLER_LAUNCHCTL":str(launchctl),
                                      "SWIFTBAR_PLUGIN_CACHE_PATH": str(cache)})
         assert result.returncode == 0, result.stderr
         return result.stdout, (cache / "curves.html").read_text()
@@ -51,8 +62,17 @@ print((p / "probe.json").read_text())
     menu, html = run()
     assert menu.startswith("55°C") and "Custom curve active" in menu
     assert "2,010 RPM" in menu and "2,198 RPM" in menu
+    assert 'param2=quiet' in menu and 'param2=balanced' in menu and 'param2=cooler' in menu and 'param2=automatic' in menu
     assert "CPU &amp; GPU" in html and "Palm rest" in html and "<svg" in html
     checks.append("Live temperatures, measured/target RPM, and both curve graphs")
+
+    status['pid']=122
+    (source/'status.json').write_text(json.dumps(status))
+    menu,_=run()
+    assert 'Custom curve active' not in menu
+    checks.append('Status from an old controller process cannot mark a new one healthy')
+    status['pid']=123
+    (source/'status.json').write_text(json.dumps(status))
 
     config["baselineRPM"] = 2000
     (source / "config.json").write_text(json.dumps(config))
@@ -71,6 +91,22 @@ print((p / "probe.json").read_text())
     menu, _ = run()
     assert "Apple automatic" in menu
     checks.append("Hardware automatic mode is identified")
+
+    (source/'disabled').touch()
+    values.update({key:42 for key in config['cpuKeys']})
+    values.update({key:39 for key in config['gpuKeys']})
+    values.update({key:27 for key in config['palmKeys']})
+    (source/'probe.json').write_text(json.dumps({'values':values}))
+    old_time=status['time']; status['time']='2000-01-01T00:00:00Z'
+    (source/'status.json').write_text(json.dumps(status))
+    menu,_=run()
+    assert menu.startswith('42°C') and 'Apple automatic' in menu and 'GPU  39.0°C' in menu
+    assert 'param2=automatic terminal=false refresh=true checked=true' in menu
+    checks.append('Apple automatic keeps live temperatures after the daemon is stopped')
+    (source/'disabled').unlink()
+    values={k:v for k,v in values.items() if k.startswith('F')}
+    (source/'probe.json').write_text(json.dumps({'values':values}))
+    status['time']=old_time
 
     status.update(mode="custom", time="2000-01-01T00:00:00Z")
     (source / "status.json").write_text(json.dumps(status))

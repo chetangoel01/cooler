@@ -1,15 +1,17 @@
 {
-  "time": "2026-09-26T22:58:39.230045+00:00",
+  "time": "2026-09-26T23:20:18.980074+00:00",
   "checks": [
     "Live temperatures, measured/target RPM, and both curve graphs",
+    "Status from an old controller process cannot mark a new one healthy",
     "Curves use installed configuration",
     "Yielding to another controller has no Cooler targets",
     "Hardware automatic mode is identified",
+    "Apple automatic keeps live temperatures after the daemon is stopped",
     "Stale status never appears live",
     "Missing and corrupt status stay readable",
     "Probe timeout is bounded and does not claim verified control",
     "The only hardware command is read-only probe",
     "Installed controller read successfully without administrator access"
   ],
-  "passed": 9
+  "passed": 11
 }

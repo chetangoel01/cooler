@@ -1,15 +1,21 @@
-78°C | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"
+80°C | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"
 ---
-Cooler · Custom curve active
+Cooler · Custom curve active · Cooler
 ---
-CPU  78.3°C
-GPU  69.8°C
+Apple automatic | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=automatic terminal=false refresh=true checked=false
+Quiet | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=quiet terminal=false refresh=true checked=false
+Balanced | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=balanced terminal=false refresh=true checked=false
+Cooler | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=cooler terminal=false refresh=true checked=true
+Cooler profile active. Saved for future restarts. | size=12 length=90
+---
+CPU  79.9°C
+GPU  70.1°C
 Palm rest  35.0°C
 ---
-Left fan · Actual  5,145 RPM
-Target  5,122 RPM | size=12
-Right fan · Actual  5,534 RPM
-Target  5,534 RPM | size=12
+Left fan · Actual  5,555 RPM
+Target  5,779 RPM | size=12
+Right fan · Actual  5,882 RPM
+Target  6,241 RPM | size=12
 ---
 View cooling curves… | href=file:///Users/chetangoel/CodexProjects/cooler/artifacts/monitor-curves.html
 Refresh now | refresh=true
