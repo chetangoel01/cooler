@@ -1,0 +1,15 @@
+78°C | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"
+---
+Cooler · Custom curve active
+---
+CPU  78.3°C
+GPU  69.8°C
+Palm rest  35.0°C
+---
+Left fan · Actual  5,145 RPM
+Target  5,122 RPM | size=12
+Right fan · Actual  5,534 RPM
+Target  5,534 RPM | size=12
+---
+View cooling curves… | href=file:///Users/chetangoel/CodexProjects/cooler/artifacts/monitor-curves.html
+Refresh now | refresh=true

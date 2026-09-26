@@ -4,6 +4,8 @@ A personal background fan controller for **MacBookPro18,4 / M1 Max**. It keeps a
 
 Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network access. Swift and IOKit; build requires Xcode Command Line Tools.
 
+An optional **SwiftBar monitor** now provides a menu-bar temperature, a dropdown with readings, and a local curve viewer. The monitor uses the existing Homebrew Python 3 installation; the controller itself still has no external runtime dependencies.
+
 ## Current deployment status
 
 Deployed September 26, 2026 and verified running with the custom curve. All **11 on-device checks passed**, including physical fan response, normal termination, forced crash, stalled controller, watchdog loss, restoration to automatic control, service restart, and installation permissions. The 15 replay checks and four process/signal checks also passed. The running process matches its fresh status, and the installed binary matches the verified build. Macs Fan Control automatic startup is disabled.
@@ -59,6 +61,36 @@ sudo '/Library/Application Support/Cooler/uninstall.sh'
 ```
 
 Removal preserves this repository, test reports, and `/var/log/cooler.log`. Re-enable Macs Fan Control startup yourself if you want to return to it.
+
+## Menu-bar monitor
+
+**Click the fan icon and CPU temperature in the macOS menu bar.** The dropdown shows CPU, GPU, and palm-rest readings plus both fans' actual RPM and requested targets. It refreshes every five seconds and when opened. **View cooling curves…** opens a local page with CPU/GPU and palm-rest graphs and exact RPM tables. Those graphs describe the installed profile, not temperature history; reopen the page after changing the profile.
+
+The monitor reads the installed status and configuration and calls only `cooler probe`. It never writes fans, changes the profile, or requires administrator access. SwiftBar does not trigger Cooler's competing-controller check. Status older than ten seconds is marked stale and its temperatures/targets are hidden. Missing sensor reads are displayed as unavailable. When Cooler yields to another controller, the menu says it is paused; Apple automatic is shown only when both hardware modes agree.
+
+Installed locations:
+
+- App: `/Applications/SwiftBar.app` (Homebrew cask, version 2.1.1 at setup).
+- Plugin: `~/Library/Application Support/SwiftBar/Plugins/cooler.5s.py`, copied from `monitor/cooler.5s.py`.
+- Login startup: `~/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist`. It opens SwiftBar at login; quitting SwiftBar keeps it closed for that session. This is separate from SwiftBar's own Launch at Login checkbox, which can remain off. Actual logout/login remains untested.
+- Curve page: SwiftBar's per-plugin cache. Running the script directly uses `~/Library/Caches/CoolerMonitor/curves.html` instead.
+
+To install or update the monitor on this Mac, with Homebrew Python already at `/opt/homebrew/bin/python3`:
+
+```sh
+cd /Users/chetangoel/CodexProjects/cooler
+brew install --cask swiftbar
+mkdir -p "$HOME/Library/Application Support/SwiftBar/Plugins" "$HOME/Library/LaunchAgents"
+install -m 755 monitor/cooler.5s.py "$HOME/Library/Application Support/SwiftBar/Plugins/cooler.5s.py"
+install -m 644 monitor/com.chetangoel.cooler-monitor.plist "$HOME/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist"
+python3 tests/monitor.py
+```
+
+Open SwiftBar once and select that Plugins folder. Allow SwiftBar in **System Settings → Menu Bar** if its item is hidden. The plugin is a regular copy, so repeat the `install` command after editing its source. The login agent takes effect on the next login. To remove just the monitor, quit SwiftBar, remove its plugin and the login plist, and remove SwiftBar if no other plugins use it; Cooler continues controlling the fans independently.
+
+`tests/monitor.py` runs the complete plugin against controlled files and a fake hardware probe, then performs a real read-only run. It checks readings, curve configuration, automatic/yielded modes, stale/missing/corrupt status, a stalled probe, and the read-only command boundary. Rerunnable evidence is saved in `artifacts/monitor-report.json`, `artifacts/monitor-menu.txt`, and `artifacts/monitor-curves.html`. No unit tests were added.
+
+Deployment also confirmed successful execution inside SwiftBar every five seconds. Visual menu/graph review remains unverified: app automation repeatedly reopened SwiftBar's recovery notice, and the preview browser disallowed local file URLs. Login startup is configured, not reboot-tested.
 
 ## Recovery and limits
 
