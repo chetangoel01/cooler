@@ -1,0 +1,5 @@
+{"cpu":69.03169250488281,"gpu":61.58787155151367,"mode":"custom","palm":30.99609375,"reason":"Cooling curve active","restoredFans":[],"targets":[3555,3759]}
+{"cpu":73.03172302246094,"gpu":61.54258346557617,"mode":"custom","palm":30.99609375,"reason":"Cooling curve active","restoredFans":[],"targets":[4112,4381]}
+{"cpu":71.34317779541016,"gpu":61.28239440917969,"mode":"custom","palm":30.99609375,"reason":"Cooling curve active","restoredFans":[],"targets":[4031,4300]}
+{"cpu":66.06804656982422,"gpu":61.25313949584961,"mode":"custom","palm":30.99609375,"reason":"Cooling curve active","restoredFans":[],"targets":[3950,4219]}
+{"cpu":70.35795593261719,"gpu":61.1867561340332,"mode":"custom","palm":30.99609375,"reason":"Cooling curve active","restoredFans":[],"targets":[3870,4139]}

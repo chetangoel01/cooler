@@ -1,0 +1,67 @@
+{
+  "model": "MacBookPro18,4",
+  "baselineRPM": 1800,
+  "fallRPMPerSecond": 40,
+  "cpuKeys": [
+    "Tp09",
+    "Tp0T",
+    "Tp01",
+    "Tp05",
+    "Tp0D",
+    "Tp0H",
+    "Tp0L",
+    "Tp0P",
+    "Tp0X",
+    "Tp0b"
+  ],
+  "gpuKeys": [
+    "Tg05",
+    "Tg0D",
+    "Tg0L",
+    "Tg0T"
+  ],
+  "curve": [
+    {
+      "temperature": 45,
+      "fraction": 0
+    },
+    {
+      "temperature": 55,
+      "fraction": 0.1
+    },
+    {
+      "temperature": 65,
+      "fraction": 0.3
+    },
+    {
+      "temperature": 75,
+      "fraction": 0.65
+    },
+    {
+      "temperature": 85,
+      "fraction": 1
+    }
+  ],
+  "palmKeys": [
+    "Ts0P",
+    "Ts1P"
+  ],
+  "palmCurve": [
+    {
+      "temperature": 30,
+      "fraction": 0
+    },
+    {
+      "temperature": 33,
+      "fraction": 0.2
+    },
+    {
+      "temperature": 36,
+      "fraction": 0.5
+    },
+    {
+      "temperature": 40,
+      "fraction": 1
+    }
+  ]
+}

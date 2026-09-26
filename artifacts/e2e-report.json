@@ -1,0 +1,66 @@
+{
+  "time": "2026-09-26T20:50:03.987907+00:00",
+  "checks": [
+    {
+      "name": "gentle baseline on both fans",
+      "passed": true
+    },
+    {
+      "name": "GPU alone requests full cooling",
+      "passed": true
+    },
+    {
+      "name": "CPU alone requests full cooling",
+      "passed": true
+    },
+    {
+      "name": "fall rate limits rapid fan changes",
+      "passed": true
+    },
+    {
+      "name": "heat increase is immediate",
+      "passed": true
+    },
+    {
+      "name": "missing sensor restores auto and needs healthy recovery samples",
+      "passed": true
+    },
+    {
+      "name": "invalid temperature restores auto",
+      "passed": true
+    },
+    {
+      "name": "another controller suspends ours",
+      "passed": true
+    },
+    {
+      "name": "partial write failure restores both fans",
+      "passed": true
+    },
+    {
+      "name": "wake gap discards previous control state",
+      "passed": true
+    },
+    {
+      "name": "invalid hardware fan limits refuse control",
+      "passed": true
+    },
+    {
+      "name": "malformed curve configuration rejected",
+      "passed": true
+    },
+    {
+      "name": "warm palm rest alone requests full cooling",
+      "passed": true
+    },
+    {
+      "name": "missing palm sensor restores automatic control",
+      "passed": true
+    },
+    {
+      "name": "three healthy samples resume cooling after sensor recovery",
+      "passed": true
+    }
+  ],
+  "scope": "Compiled CLI replay; no hardware writes. Live verification is separate."
+}
