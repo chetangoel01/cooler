@@ -1,16 +1,15 @@
 {
-  "time": "2026-09-27T06:07:18.924661+00:00",
+  "time": "2026-09-27T18:44:39.299119+00:00",
   "checks": [
-    "All 5 CPU & GPU points are visible without scrolling",
-    "Removing a point keeps the editor running and shortens the curve",
+    "The editor opens at 640 x 350 points",
+    "The + and \u2212 buttons remove and add points without touching the graph",
+    "Removing a point on the palm curve keeps the editor running",
     "Switching between curves with different point counts and removing again keeps it running",
     "Closed without applying; no crash report, dialog, or change to the installed or saved curve"
   ],
-  "passed": 4,
+  "passed": 5,
   "details": {
-    "last_point_bottom": 676,
-    "list_bottom": 686,
-    "palm_point_2_demand": "25"
+    "window": "640x350"
   },
   "applied_changes": false
 }

@@ -8,8 +8,12 @@ row outlives the shorter curve and reads past its end); switching between curves
 with different point counts crashes; a demand edit in progress lands in the other
 sensor curve after switching tabs; the test changes the installed or saved curve;
 the test discards a draft the user has open; a crash dialog or editor window is
-left on screen. Layout pass, written before its code: a point is hidden below the
-list with no visible way to reach it.
+left on screen. Graph-first redesign, written before its code:
+the window is larger than it needs to be; a point can only be reached with a mouse
+on the chart; the selected point points past the end after a removal, tab switch,
+or preset; a drag crosses a neighbor or moves the last point off full speed; a
+typed value produces an invalid curve; the "now" marker shows a stale reading as
+current; a pending field edit lands on the wrong point after Presets or Apply.
 
 It never presses Save & apply. It refuses to start while the editor is open. It
 uses only accessibility actions on the editor's own controls, never keystrokes or
@@ -20,6 +24,7 @@ tab-switch edit case is therefore covered by code review, not by this test.
 import datetime as dt
 import hashlib
 import json
+import math
 from pathlib import Path
 import subprocess
 import time
@@ -74,9 +79,9 @@ def value(label):
     return ax(f'tell application "System Events" to return value of (my findElement("AXTextField", "{label}"))')
 
 
-def shown(fraction):
-    # The editor shows demand with at most one decimal place.
-    return f"{fraction * 100:.1f}".rstrip("0").rstrip(".")
+def degrees(temperature):
+    # The editor shows temperatures with at most one decimal place.
+    return f"{temperature:.1f}".rstrip("0").rstrip(".")
 
 
 def digest(path):
@@ -98,46 +103,39 @@ try:
     deadline = time.time() + 20
     while True:
         try:
-            value("Point 1 temperature")
+            value("Selected point temperature")
             break
         except RuntimeError:
             assert time.time() < deadline, "The editor did not load its curves"
             time.sleep(0.5)
 
-    geometry = ax(f'''tell application "System Events" to tell process "CoolerCurves"
-    set lastField to my findElement("AXTextField", "Point {len(cpu)} temperature")
-    set {{fx, fy}} to position of lastField
-    set {{fw, fh}} to size of lastField
-    set listArea to missing value
-    set allElements to entire contents of window 1
-    repeat with i from 1 to count of allElements
-        try
-            if role of (item i of allElements) is "AXScrollArea" then set listArea to item i of allElements
-        end try
-    end repeat
-    set {{sx, sy}} to position of listArea
-    set {{sw, sh}} to size of listArea
-    return ((round fy) as text) & "," & ((round fh) as text) & "," & ((round sy) as text) & "," & ((round sh) as text)
-end tell''')
-    fy, fh, sy, sh = map(int, geometry.split(","))
-    details["last_point_bottom"], details["list_bottom"] = fy + fh, sy + sh
-    assert sy - 1 <= fy and fy + fh <= sy + sh + 1, f"Point {len(cpu)} is hidden below the list: {details}"
-    checks.append(f"All {len(cpu)} CPU & GPU points are visible without scrolling")
+    size = ax('''tell application "System Events" to tell process "CoolerCurves" to set windowSize to size of window 1
+return ((item 1 of windowSize) as text) & "," & ((item 2 of windowSize) as text)''')
+    width, height = map(int, size.split(","))
+    details["window"] = f"{width}x{height}"
+    assert width <= 660 and height <= 420, f"The window is larger than it needs to be: {details}"
+    checks.append(f"The editor opens at {width} x {height} points")
+
+    # The first point starts selected, so + and − work without touching the graph.
+    assert value("Selected point temperature") == degrees(cpu[0]["temperature"])
+    click("AXButton", "Remove point")
+    assert value("Selected point temperature") == degrees(cpu[1]["temperature"]), "Remove point did not remove the selected point"
+    rest = cpu[1:]
+    gap = max(range(len(rest) - 1), key=lambda i: rest[i + 1]["temperature"] - rest[i]["temperature"])
+    click("AXButton", "Add point")
+    added = math.floor((rest[gap]["temperature"] + rest[gap + 1]["temperature"]) / 2 + 0.5)
+    assert value("Selected point temperature") == degrees(added), "Add point did not add and select a point in the widest gap"
+    checks.append("The + and − buttons remove and add points without touching the graph")
 
     click("AXRadioButton", "Palm rest")
-    details["palm_point_2_demand"] = value("Point 2 demand percent")
-    assert details["palm_point_2_demand"] == shown(palm[1]["fraction"]), details
-    click("AXButton", "Remove point 1")
-    try:
-        value(f"Point {len(palm)} temperature")
-        raise AssertionError("Remove point did not shorten the palm curve")
-    except RuntimeError:
-        pass
-    checks.append("Removing a point keeps the editor running and shortens the curve")
+    assert value("Selected point temperature") == degrees(palm[0]["temperature"]), "Palm rest did not select its first point"
+    click("AXButton", "Remove point")
+    assert value("Selected point temperature") == degrees(palm[1]["temperature"])
+    checks.append("Removing a point on the palm curve keeps the editor running")
 
     for tab in ["CPU & GPU", "Palm rest", "CPU & GPU"]:
         click("AXRadioButton", tab)
-    click("AXButton", "Remove point 2")
+    click("AXButton", "Remove point")
     checks.append("Switching between curves with different point counts and removing again keeps it running")
 finally:
     if running():

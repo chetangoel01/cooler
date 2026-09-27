@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 
 struct CurvePoint: Codable, Equatable {
@@ -34,15 +35,31 @@ struct EditorData: Decodable {
     let limits: [FanLimit]
 }
 struct ActionResult: Decodable { let ok: Bool; let message: String }
+struct Reading: Decodable { let cpu: Double?; let gpu: Double?; let palm: Double?; let time: String? }
 
 final class EditorModel: ObservableObject {
     @Published var data: EditorData?
     @Published var draft: CurveSettings?
     @Published var message = "Loading…"
     @Published var busy = true
-    @Published var succeeded = false
+    @Published var reading: Reading?
+    private var clock: Timer?
     private let plugin = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/SwiftBar/Plugins/cooler.5s.py")
+
+    init() {
+        refreshReading()
+        clock = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.refreshReading() }
+    }
+
+    // Cooler's status file is world-readable; a reading older than ten seconds is not "now".
+    func refreshReading() {
+        let url = URL(fileURLWithPath: "/Library/Application Support/Cooler/status.json")
+        guard let bytes = try? Data(contentsOf: url), let value = try? JSONDecoder().decode(Reading.self, from: bytes),
+              let stamp = value.time, let time = ISO8601DateFormatter().date(from: stamp),
+              abs(time.timeIntervalSinceNow) <= 10 else { reading = nil; return }
+        reading = value
+    }
 
     func run(_ arguments: [String]) throws -> Data {
         let process = Process(), output = Pipe(), errors = Pipe()
@@ -84,8 +101,7 @@ final class EditorModel: ObservableObject {
     func apply() {
         guard let draft, draft.error == nil, !busy else { return }
         busy = true
-        succeeded = false
-        message = "Waiting for macOS authorization…"
+        message = "Waiting for authorization…"
         DispatchQueue.global(qos: .userInitiated).async {
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("cooler-edit-\(UUID().uuidString).json")
             defer { try? FileManager.default.removeItem(at: file) }
@@ -93,8 +109,7 @@ final class EditorModel: ObservableObject {
                 try JSONEncoder().encode(draft).write(to: file, options: .atomic)
                 let result = try JSONDecoder().decode(ActionResult.self, from: self.run(["--apply-custom", file.path]))
                 DispatchQueue.main.async {
-                    self.message = result.message
-                    self.succeeded = result.ok
+                    self.message = result.ok ? "" : result.message
                     self.busy = false
                     if result.ok, let data = self.data {
                         self.data = EditorData(current: draft, saved: draft, presets: data.presets, limits: data.limits)
@@ -107,232 +122,309 @@ final class EditorModel: ObservableObject {
     }
 }
 
-struct CurveGraph: View {
+// The controller interpolates linearly and holds the end values beyond the first and last points.
+func demand(at temperature: Double, on points: [CurvePoint]) -> Double {
+    guard let first = points.first, let last = points.last else { return 0 }
+    if temperature <= first.temperature { return first.fraction }
+    for (a, b) in zip(points, points.dropFirst()) where temperature <= b.temperature {
+        return a.fraction + (b.fraction - a.fraction) * (temperature - a.temperature) / (b.temperature - a.temperature)
+    }
+    return last.fraction
+}
+
+struct CurveChart: View {
     @Binding var points: [CurvePoint]
-    let baseline: Double
-    let limits: [FanLimit]
+    @Binding var selection: Int?
     let palm: Bool
-    @State private var dragRange: ClosedRange<Double>?
-    // Fans never run below about 1,200 RPM, so the axis starts at 1,000 rather than 0.
-    private let rpmRange = 1000.0...6500.0
-    private var range: ClosedRange<Double> {
-        if let dragRange { return dragRange }
-        let low = min(palm ? 25 : 40, (points.first?.temperature ?? 40) - 5)
+    let now: Double?
+    let insert: (Double) -> Void
+    @State private var dragging: Int?
+    @State private var frozen: ClosedRange<Double>?
+
+    private var domain: ClosedRange<Double> {
+        if let frozen { return frozen }
+        let low = min(palm ? 25 : 35, (points.first?.temperature ?? 40) - 5)
         let high = max(palm ? 45 : 90, (points.last?.temperature ?? 85) + 5)
         return (low / 5).rounded(.down) * 5...(high / 5).rounded(.up) * 5
     }
-    private func rpm(_ fraction: Double, _ fan: Int) -> Double {
-        let floor = max(baseline, limits[fan].minimum)
-        return floor + (limits[fan].maximum - floor) * fraction
-    }
-    var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width - 76
-            let height = geometry.size.height - 44
-            let lower = range.lowerBound, upper = range.upperBound
-            let span = rpmRange.upperBound - rpmRange.lowerBound
-            let x: (Double) -> Double = { 54 + ($0 - lower) / (upper - lower) * width }
-            let y: (Double) -> Double = { 14 + height * (1 - ($0 - rpmRange.lowerBound) / span) }
-            let step = upper - lower > 30 ? 10.0 : 5.0
-            let ticks = Array(stride(from: (lower / step).rounded(.up) * step, through: upper, by: step))
-            ZStack(alignment: .topLeading) {
-                ForEach([2000, 4000, 6000], id: \.self) { value in
-                    Path { p in p.move(to: CGPoint(x: 54, y: y(Double(value)))); p.addLine(to: CGPoint(x: 54 + width, y: y(Double(value)))) }
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    Text(value.formatted()).font(.caption).foregroundStyle(.secondary)
-                        .position(x: 24, y: y(Double(value)))
-                }
-                Text("RPM").font(.caption2).foregroundStyle(.secondary).position(x: 24, y: 6)
-                ForEach(ticks, id: \.self) { t in
-                    Text("\(Int(t))°C").font(.caption).foregroundStyle(.secondary).position(x: x(t), y: height + 34)
-                }
-                ForEach(0..<2) { fan in
-                    Path { path in
-                        guard let first = points.first, let last = points.last else { return }
-                        path.move(to: CGPoint(x: x(lower), y: y(rpm(first.fraction, fan))))
-                        for point in points { path.addLine(to: CGPoint(x: x(point.temperature), y: y(rpm(point.fraction, fan)))) }
-                        path.addLine(to: CGPoint(x: x(upper), y: y(rpm(last.fraction, fan))))
-                    }
-                    .stroke(fan == 0 ? Color.accentColor : Color.secondary, style: StrokeStyle(lineWidth: 2, dash: fan == 0 ? [] : [6, 4]))
-                }
-                ForEach(points.indices, id: \.self) { index in
-                    Circle().fill(Color.accentColor).frame(width: 11, height: 11)
-                        .frame(width: 28, height: 28).contentShape(Rectangle())
-                        .position(x: x(points[index].temperature), y: y(rpm(points[index].fraction, 0)))
-                        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("graph"))
-                            .onChanged { event in
-                                guard points.indices.contains(index) else { return }
-                                if dragRange == nil { dragRange = lower...upper }
-                                let t = lower + (event.location.x - 54) / width * (upper - lower)
-                                let floor = max(baseline, limits[0].minimum)
-                                let requested = rpmRange.lowerBound + (1 - (event.location.y - 14) / height) * span
-                                let f = (requested - floor) / (limits[0].maximum - floor)
-                                let lowT = index == 0 ? 10 : points[index - 1].temperature.nextUp
-                                let highT = index == points.count - 1 ? 90 : points[index + 1].temperature.nextDown
-                                points[index].temperature = min(highT, max(lowT, t.rounded()))
-                                if index != points.count - 1 {
-                                    let lowF = index == 0 ? 0 : points[index - 1].fraction
-                                    points[index].fraction = min(points[index + 1].fraction, max(lowF, (f * 100).rounded() / 100))
-                                }
-                            }.onEnded { _ in dragRange = nil })
-                        .accessibilityLabel("Curve point \(index + 1)")
-                }
-            }.coordinateSpace(name: "graph")
+
+    // Keeps temperatures increasing, demand non-decreasing, and the last point at full speed.
+    private func move(_ index: Int, to temperature: Double, fraction: Double) {
+        guard points.indices.contains(index) else { return }
+        let lowT = index == 0 ? 10 : points[index - 1].temperature.nextUp
+        let highT = index == points.count - 1 ? 90 : points[index + 1].temperature.nextDown
+        points[index].temperature = min(highT, max(lowT, temperature.rounded()))
+        if index < points.count - 1 {
+            let lowF = index == 0 ? 0 : points[index - 1].fraction
+            points[index].fraction = min(points[index + 1].fraction, max(lowF, (fraction * 100).rounded() / 100))
         }
-        .frame(height: 200)
-        .clipped()
+    }
+
+    private func nearest(to location: CGPoint, proxy: ChartProxy, plot: CGRect) -> Int? {
+        var best: (index: Int, distance: CGFloat)?
+        for index in points.indices {
+            guard let x = proxy.position(forX: points[index].temperature),
+                  let y = proxy.position(forY: points[index].fraction * 100) else { continue }
+            let distance = hypot(plot.minX + x - location.x, plot.minY + y - location.y)
+            if distance < 18, distance < (best?.distance ?? .infinity) { best = (index, distance) }
+        }
+        return best?.index
+    }
+
+    var body: some View {
+        let range = domain
+        let line = [CurvePoint(temperature: range.lowerBound, fraction: points.first?.fraction ?? 0)] + points
+            + [CurvePoint(temperature: range.upperBound, fraction: points.last?.fraction ?? 1)]
+        Chart {
+            ForEach(Array(line.enumerated()), id: \.offset) { _, point in
+                AreaMark(x: .value("Temperature", point.temperature), y: .value("Speed", point.fraction * 100))
+                    .foregroundStyle(.linearGradient(colors: [Color.accentColor.opacity(0.24), Color.accentColor.opacity(0.03)],
+                                                     startPoint: .top, endPoint: .bottom))
+                LineMark(x: .value("Temperature", point.temperature), y: .value("Speed", point.fraction * 100))
+                    .foregroundStyle(Color.accentColor)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            }
+            if let now, range.contains(now) {
+                RuleMark(x: .value("Now", now))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .annotation(position: .top, spacing: 2) {
+                        Text("\(Int(now.rounded()))°").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                PointMark(x: .value("Now", now), y: .value("Speed", demand(at: now, on: points) * 100))
+                    .symbolSize(30).foregroundStyle(Color.secondary)
+            }
+            ForEach(points.indices, id: \.self) { index in
+                PointMark(x: .value("Temperature", points[index].temperature), y: .value("Speed", points[index].fraction * 100))
+                    .symbol {
+                        Circle()
+                            .fill(selection == index ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+                            .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: 2))
+                            .frame(width: selection == index ? 14 : 11, height: selection == index ? 14 : 11)
+                    }
+            }
+        }
+        .chartXScale(domain: range)
+        .chartYScale(domain: -4...104)
+        .chartXAxis {
+            AxisMarks(values: .stride(by: palm ? 5 : 10)) { value in
+                AxisGridLine()
+                AxisValueLabel { if let t = value.as(Double.self) { Text("\(Int(t))°") } }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: [0, 50, 100]) { value in
+                AxisGridLine()
+                AxisValueLabel { if let v = value.as(Double.self) { Text(v == 0 ? "Min" : v == 100 ? "Full" : "50%") } }
+            }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { event in
+                            guard let anchor = proxy.plotFrame else { return }
+                            let plot = geometry[anchor]
+                            if dragging == nil {
+                                frozen = range
+                                dragging = nearest(to: event.startLocation, proxy: proxy, plot: plot)
+                                if let dragging { selection = dragging }
+                            }
+                            guard let index = dragging,
+                                  let temperature: Double = proxy.value(atX: event.location.x - plot.minX),
+                                  let speed: Double = proxy.value(atY: event.location.y - plot.minY) else { return }
+                            if event.translation != .zero { move(index, to: temperature, fraction: speed / 100) }
+                        }
+                        .onEnded { _ in dragging = nil; frozen = nil })
+                    .simultaneousGesture(SpatialTapGesture(count: 2).onEnded { event in
+                        guard let anchor = proxy.plotFrame,
+                              let temperature: Double = proxy.value(atX: event.location.x - geometry[anchor].minX) else { return }
+                        insert(temperature)
+                    })
+            }
+        }
+        .accessibilityLabel(palm ? "Palm rest curve" : "CPU and GPU curve")
+        .accessibilityValue("\(points.count) points")
     }
 }
 
 struct EditorView: View {
     @StateObject private var model = EditorModel()
     @State private var palm = false
+    @State private var selection: Int? = 0
     private var settings: Binding<CurveSettings> {
         Binding(get: { model.draft! }, set: {
             model.draft = $0
-            model.succeeded = false
             model.message = ""
         })
     }
     private var points: Binding<[CurvePoint]> { palm ? settings.palmCurve : settings.curve }
     private func commitFields() { NSApp.keyWindow?.makeFirstResponder(nil) }
+    private var now: Double? {
+        guard let reading = model.reading else { return nil }
+        return palm ? reading.palm : [reading.cpu, reading.gpu].compactMap { $0 }.max()
+    }
+    private var status: String {
+        if let error = model.draft?.error { return error }
+        if !model.message.isEmpty { return model.message }
+        guard let draft = model.draft, let data = model.data else { return "" }
+        return draft == data.current ? "Active" : "Not applied"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Group {
             if model.draft != nil, let data = model.data {
                 editor(data).disabled(model.busy)
-                Divider()
+            } else {
+                VStack(spacing: 12) {
+                    if model.busy { ProgressView() } else {
+                        Text(model.message).foregroundStyle(.secondary)
+                        Button("Try again") { model.load() }
+                    }
+                }.frame(width: 640, height: 300)
             }
-            HStack(alignment: .center, spacing: 16) {
-                if model.busy { ProgressView().controlSize(.small) }
-                Text(model.draft?.error ?? model.message)
-                    .font(.callout).foregroundStyle(model.draft?.error != nil ? Color.red : Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("action-status")
-                Spacer(minLength: 10)
-                if model.data == nil {
-                    Button("Try again") { model.load() }.disabled(model.busy)
-                } else {
-                    Button(model.succeeded ? "Applied" : "Save & apply") {
+        }
+        .navigationTitle("Custom Curve")
+        .navigationSubtitle(status)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Curve", selection: $palm) {
+                    Text("CPU & GPU").tag(false)
+                    Text("Palm rest").tag(true)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                if let data = model.data {
+                    Menu("Presets") {
+                        Button("Installed curve") { use(data.current) }
+                        if let saved = data.saved { Button("Saved Custom curve") { use(saved) } }
+                        Divider()
+                        ForEach(["quiet", "balanced", "cooler"], id: \.self) { name in
+                            Button(name.capitalized) { use(data.presets[name]!) }
+                        }
+                    }.disabled(model.busy)
+                    Button("Apply") {
                         commitFields()
                         DispatchQueue.main.async { model.apply() }
                     }
                     .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                    .disabled(model.busy || model.draft?.error != nil)
-                    .accessibilityIdentifier("apply-curve")
+                    // Blue only when there is something to apply.
+                    .tint(model.draft == data.current ? Color.secondary : Color.accentColor)
+                    .disabled(model.busy || model.draft?.error != nil || model.draft == data.current)
                 }
             }
         }
-        .padding(24)
-        .frame(minWidth: 680, idealWidth: 760, maxWidth: 1000)
         .onAppear { model.load() }
+        .onChange(of: palm) { selection = 0 }
+    }
+
+    private func use(_ curve: CurveSettings) {
+        commitFields()
+        settings.wrappedValue = curve
+        selection = 0
     }
 
     private func editor(_ data: EditorData) -> some View {
-        // Rows keep the curve they were made for, so a tab switch can't redirect an edit.
+        // Everything below keeps the curve it was made for, so a tab switch can't redirect an edit.
         let curve = points
         let count = curve.wrappedValue.count
-        return VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Minimum airflow")
-                TextField("Baseline RPM", value: settings.baselineRPM, format: .number.precision(.fractionLength(0)))
-                    .textFieldStyle(.roundedBorder).frame(width: 80).accessibilityLabel("Baseline RPM")
-                Text("RPM").foregroundStyle(.secondary)
-                Spacer()
-                Menu("Start from") {
-                    Button("Installed curve") { commitFields(); settings.wrappedValue = data.current }
-                    if let saved = data.saved { Button("Saved Custom curve") { commitFields(); settings.wrappedValue = saved } }
-                    Divider()
-                    ForEach(["quiet", "balanced", "cooler"], id: \.self) { name in
-                        Button(name.capitalized) { commitFields(); settings.wrappedValue = data.presets[name]! }
-                    }
+        let removable = selection.map { $0 < count - 1 } ?? false && count > 2
+        return VStack(spacing: 12) {
+            CurveChart(points: curve, selection: $selection, palm: palm, now: now) { insert($0, in: curve) }
+                .frame(height: 230)
+            HStack(spacing: 14) {
+                ControlGroup {
+                    Button { add(to: curve) } label: { Image(systemName: "plus") }
+                        .help("Add point").disabled(count >= 20)
+                    Button { remove(from: curve) } label: { Image(systemName: "minus") }
+                        .help("Remove point").disabled(!removable)
                 }.fixedSize()
-            }
-            HStack(spacing: 18) {
-                Picker("Sensor curve", selection: $palm) {
-                    Text("CPU & GPU").tag(false)
-                    Text("Palm rest").tag(true)
-                }.pickerStyle(.segmented).labelsHidden().fixedSize()
-                Spacer()
-                legend("Left fan", dashed: false, color: .accentColor)
-                legend("Right fan", dashed: true, color: .secondary)
-            }
-            CurveGraph(points: curve, baseline: model.draft!.baselineRPM, limits: data.limits, palm: palm)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Text("Temperature").frame(width: 105, alignment: .leading)
-                    Text("Demand").frame(width: 85, alignment: .leading)
-                    Text("Left / right RPM")
-                }.font(.caption).foregroundStyle(.secondary)
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(curve.wrappedValue.indices, id: \.self) { i in
-                            pointRow(i, in: curve, limits: data.limits)
-                        }
-                    }.padding(.trailing, 3).id(palm)
+                if let index = selection, index < count {
+                    pointFields(index, in: curve, limits: data.limits)
                 }
-                // Every point shows up to eight; beyond that the list scrolls with a visible bar.
-                .frame(height: CGFloat(min(count, 8)) * 34)
-                .scrollIndicators(count > 8 ? .visible : .never)
+                Spacer(minLength: 12)
+                Text("Minimum").foregroundStyle(.secondary)
+                TextField("Minimum RPM", value: baseline, format: .number.precision(.fractionLength(0)))
+                    .textFieldStyle(.roundedBorder).frame(width: 58).multilineTextAlignment(.trailing)
+                    .accessibilityLabel("Baseline RPM")
+                Text("RPM").foregroundStyle(.secondary)
+                Stepper("Minimum RPM", value: baseline, in: 1200...2500, step: 100).labelsHidden()
             }
-            Button("Add point") {
-                commitFields()
-                let p = curve.wrappedValue
-                if let i = (0..<(p.count - 1)).max(by: { p[$0 + 1].temperature - p[$0].temperature < p[$1 + 1].temperature - p[$1].temperature }) {
-                    curve.wrappedValue.insert(CurvePoint(temperature: (p[i].temperature + p[i+1].temperature) / 2,
-                                                         fraction: (p[i].fraction + p[i+1].fraction) / 2), at: i+1)
-                }
-            }.disabled(count >= 20 || model.draft!.error != nil)
         }
+        .padding(16)
+        .frame(width: 640)
     }
 
-    private func legend(_ title: String, dashed: Bool, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Path { p in p.move(to: CGPoint(x: 0, y: 5)); p.addLine(to: CGPoint(x: 18, y: 5)) }
-                .stroke(color, style: StrokeStyle(lineWidth: 2, dash: dashed ? [6, 4] : []))
-                .frame(width: 18, height: 10)
-            Text(title).foregroundStyle(.secondary)
-        }.font(.caption)
+    private var baseline: Binding<Double> {
+        Binding(get: { settings.wrappedValue.baselineRPM },
+                set: { settings.wrappedValue.baselineRPM = min(2500, max(1200, $0.rounded())) })
     }
 
-    private func pointRow(_ index: Int, in curve: Binding<[CurvePoint]>, limits: [FanLimit]) -> some View {
-        // A row can outlive a shorter curve for one update (after Remove or a tab switch),
-        // so it reads and writes its point only while that point still exists.
-        func bound(_ key: WritableKeyPath<CurvePoint, Double>, scale: Double = 1) -> Binding<Double> {
-            Binding(get: { index < curve.wrappedValue.count ? curve.wrappedValue[index][keyPath: key] * scale : 0 },
-                    set: { if index < curve.wrappedValue.count { curve.wrappedValue[index][keyPath: key] = $0 / scale } })
-        }
-        let temperature = bound(\.temperature), demand = bound(\.fraction, scale: 100)
-        let last = index >= curve.wrappedValue.count - 1
-        let fraction = index < curve.wrappedValue.count ? curve.wrappedValue[index].fraction : 0
-        let speeds = limits.map { limit -> String in
-            let floor = max(model.draft!.baselineRPM, limit.minimum)
-            let speed = floor + (limit.maximum - floor) * fraction
-            return speed.isFinite ? speed.formatted(.number.precision(.fractionLength(0))) : "?"
-        }
-        return HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                TextField("Temperature", value: temperature, format: .number.precision(.fractionLength(0...1)))
-                    .textFieldStyle(.roundedBorder).frame(width: 67)
-                    .accessibilityLabel("Point \(index + 1) temperature")
-                Text("°C").foregroundStyle(.secondary)
-            }.frame(width: 105, alignment: .leading)
-            HStack(spacing: 4) {
-                TextField("Demand", value: demand, format: .number.precision(.fractionLength(0...1)))
-                    .textFieldStyle(.roundedBorder).frame(width: 55)
-                    .disabled(last)
-                    .accessibilityLabel("Point \(index + 1) demand percent")
-                Text("%").foregroundStyle(.secondary)
-            }.frame(width: 85, alignment: .leading)
-            Text(speeds.joined(separator: " / ")).monospacedDigit()
-            Spacer()
-            Button {
-                commitFields()
-                if index < curve.wrappedValue.count { curve.wrappedValue.remove(at: index) }
-            } label: { Image(systemName: "minus.circle") }
-                .buttonStyle(.borderless).frame(width: 24)
-                .disabled(curve.wrappedValue.count <= 2 || last)
-                .help("Remove point \(index + 1)").accessibilityLabel("Remove point \(index + 1)")
+    // Adds a point in the widest gap and selects it.
+    private func add(to curve: Binding<[CurvePoint]>) {
+        commitFields()
+        let p = curve.wrappedValue
+        guard p.count < 20, let i = (0..<(p.count - 1)).max(by: {
+            p[$0 + 1].temperature - p[$0].temperature < p[$1 + 1].temperature - p[$1].temperature }) else { return }
+        curve.wrappedValue.insert(CurvePoint(temperature: ((p[i].temperature + p[i + 1].temperature) / 2).rounded(),
+                                             fraction: (p[i].fraction + p[i + 1].fraction) / 2), at: i + 1)
+        selection = i + 1
+    }
+
+    // Double-click on the graph: a new point on the curve at that temperature.
+    private func insert(_ temperature: Double, in curve: Binding<[CurvePoint]>) {
+        let p = curve.wrappedValue, t = temperature.rounded()
+        guard p.count < 20, t >= 10, let index = p.firstIndex(where: { $0.temperature > t }),
+              index == 0 || p[index - 1].temperature < t else { return }
+        commitFields()
+        curve.wrappedValue.insert(CurvePoint(temperature: t, fraction: (demand(at: t, on: p) * 100).rounded() / 100), at: index)
+        selection = index
+    }
+
+    private func remove(from curve: Binding<[CurvePoint]>) {
+        commitFields()
+        guard let index = selection, index < curve.wrappedValue.count - 1, curve.wrappedValue.count > 2 else { return }
+        curve.wrappedValue.remove(at: index)
+        selection = max(0, index - 1)
+    }
+
+    // The selected point's exact values. Typed values are held between the neighbors, like dragging.
+    private func pointFields(_ index: Int, in curve: Binding<[CurvePoint]>, limits: [FanLimit]) -> some View {
+        let p = curve.wrappedValue
+        let last = index >= p.count - 1
+        let temperature = Binding<Double>(
+            get: { index < curve.wrappedValue.count ? curve.wrappedValue[index].temperature : 0 },
+            set: { value in
+                let q = curve.wrappedValue
+                guard index < q.count else { return }
+                let low = index == 0 ? 10 : q[index - 1].temperature.nextUp
+                let high = index == q.count - 1 ? 90 : q[index + 1].temperature.nextDown
+                curve.wrappedValue[index].temperature = min(high, max(low, value))
+            })
+        let speed = Binding<Double>(
+            get: { index < curve.wrappedValue.count ? curve.wrappedValue[index].fraction * 100 : 0 },
+            set: { value in
+                let q = curve.wrappedValue
+                guard index < q.count - 1 else { return }
+                let low = index == 0 ? 0 : q[index - 1].fraction
+                curve.wrappedValue[index].fraction = min(q[index + 1].fraction, max(low, value / 100))
+            })
+        let fraction = index < p.count ? p[index].fraction : 0
+        let rpm = limits.map { limit -> String in
+            let floor = max(settings.wrappedValue.baselineRPM, limit.minimum)
+            let value = floor + (limit.maximum - floor) * fraction
+            return value.isFinite ? value.formatted(.number.precision(.fractionLength(0))) : "?"
+        }.joined(separator: " / ")
+        return HStack(spacing: 5) {
+            TextField("Temperature", value: temperature, format: .number.precision(.fractionLength(0...1)))
+                .textFieldStyle(.roundedBorder).frame(width: 44).multilineTextAlignment(.trailing)
+                .accessibilityLabel("Selected point temperature")
+            Text("°C").foregroundStyle(.secondary)
+            TextField("Speed", value: speed, format: .number.precision(.fractionLength(0)))
+                .textFieldStyle(.roundedBorder).frame(width: 40).multilineTextAlignment(.trailing)
+                .disabled(last).accessibilityLabel("Selected point speed")
+            Text("%").foregroundStyle(.secondary)
+            Text("\(rpm) RPM").foregroundStyle(.secondary).monospacedDigit().padding(.leading, 6)
         }
     }
 }
