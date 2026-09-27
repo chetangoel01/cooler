@@ -1,12 +1,15 @@
 {
-  "time": "2026-09-27T05:57:31.934075+00:00",
+  "time": "2026-09-27T06:07:18.924661+00:00",
   "checks": [
+    "All 5 CPU & GPU points are visible without scrolling",
     "Removing a point keeps the editor running and shortens the curve",
     "Switching between curves with different point counts and removing again keeps it running",
     "Closed without applying; no crash report, dialog, or change to the installed or saved curve"
   ],
-  "passed": 3,
+  "passed": 4,
   "details": {
+    "last_point_bottom": 676,
+    "list_bottom": 686,
     "palm_point_2_demand": "25"
   },
   "applied_changes": false

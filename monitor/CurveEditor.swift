@@ -38,7 +38,7 @@ struct ActionResult: Decodable { let ok: Bool; let message: String }
 final class EditorModel: ObservableObject {
     @Published var data: EditorData?
     @Published var draft: CurveSettings?
-    @Published var message = "Reading installed curves and fan limits…"
+    @Published var message = "Loading…"
     @Published var busy = true
     @Published var succeeded = false
     private let plugin = FileManager.default.homeDirectoryForCurrentUser
@@ -73,7 +73,7 @@ final class EditorModel: ObservableObject {
                     self.draft = data.current.curve.allSatisfy { $0.fraction == 1 }
                         ? (data.saved ?? data.presets["cooler"]!) : data.current
                     self.busy = false
-                    self.message = "Changes stay in this window until you apply them."
+                    self.message = ""
                 }
             } catch {
                 DispatchQueue.main.async { self.busy = false; self.message = error.localizedDescription }
@@ -113,8 +113,13 @@ struct CurveGraph: View {
     let limits: [FanLimit]
     let palm: Bool
     @State private var dragRange: ClosedRange<Double>?
+    // Fans never run below about 1,200 RPM, so the axis starts at 1,000 rather than 0.
+    private let rpmRange = 1000.0...6500.0
     private var range: ClosedRange<Double> {
-        dragRange ?? min(palm ? 25 : 40, (points.first?.temperature ?? 40) - 5)...max(palm ? 45 : 90, (points.last?.temperature ?? 85) + 5)
+        if let dragRange { return dragRange }
+        let low = min(palm ? 25 : 40, (points.first?.temperature ?? 40) - 5)
+        let high = max(palm ? 45 : 90, (points.last?.temperature ?? 85) + 5)
+        return (low / 5).rounded(.down) * 5...(high / 5).rounded(.up) * 5
     }
     private func rpm(_ fraction: Double, _ fan: Int) -> Double {
         let floor = max(baseline, limits[fan].minimum)
@@ -125,8 +130,11 @@ struct CurveGraph: View {
             let width = geometry.size.width - 76
             let height = geometry.size.height - 44
             let lower = range.lowerBound, upper = range.upperBound
+            let span = rpmRange.upperBound - rpmRange.lowerBound
             let x: (Double) -> Double = { 54 + ($0 - lower) / (upper - lower) * width }
-            let y: (Double) -> Double = { 14 + height * (1 - $0 / 7000) }
+            let y: (Double) -> Double = { 14 + height * (1 - ($0 - rpmRange.lowerBound) / span) }
+            let step = upper - lower > 30 ? 10.0 : 5.0
+            let ticks = Array(stride(from: (lower / step).rounded(.up) * step, through: upper, by: step))
             ZStack(alignment: .topLeading) {
                 ForEach([2000, 4000, 6000], id: \.self) { value in
                     Path { p in p.move(to: CGPoint(x: 54, y: y(Double(value)))); p.addLine(to: CGPoint(x: 54 + width, y: y(Double(value)))) }
@@ -135,9 +143,8 @@ struct CurveGraph: View {
                         .position(x: 24, y: y(Double(value)))
                 }
                 Text("RPM").font(.caption2).foregroundStyle(.secondary).position(x: 24, y: 6)
-                ForEach(0..<6) { tick in
-                    let t = lower + Double(tick) * (upper - lower) / 5
-                    Text("\(Int(t.rounded()))°C").font(.caption).foregroundStyle(.secondary).position(x: x(t), y: height + 34)
+                ForEach(ticks, id: \.self) { t in
+                    Text("\(Int(t))°C").font(.caption).foregroundStyle(.secondary).position(x: x(t), y: height + 34)
                 }
                 ForEach(0..<2) { fan in
                     Path { path in
@@ -158,7 +165,8 @@ struct CurveGraph: View {
                                 if dragRange == nil { dragRange = lower...upper }
                                 let t = lower + (event.location.x - 54) / width * (upper - lower)
                                 let floor = max(baseline, limits[0].minimum)
-                                let f = ((1 - (event.location.y - 14) / height) * 7000 - floor) / (limits[0].maximum - floor)
+                                let requested = rpmRange.lowerBound + (1 - (event.location.y - 14) / height) * span
+                                let f = (requested - floor) / (limits[0].maximum - floor)
                                 let lowT = index == 0 ? 10 : points[index - 1].temperature.nextUp
                                 let highT = index == points.count - 1 ? 90 : points[index + 1].temperature.nextDown
                                 points[index].temperature = min(highT, max(lowT, t.rounded()))
@@ -167,12 +175,12 @@ struct CurveGraph: View {
                                     points[index].fraction = min(points[index + 1].fraction, max(lowF, (f * 100).rounded() / 100))
                                 }
                             }.onEnded { _ in dragRange = nil })
-                        .help("Drag to change temperature and fan demand. Exact values are below.")
                         .accessibilityLabel("Curve point \(index + 1)")
                 }
             }.coordinateSpace(name: "graph")
         }
-        .frame(height: 224)
+        .frame(height: 200)
+        .clipped()
     }
 }
 
@@ -183,89 +191,18 @@ struct EditorView: View {
         Binding(get: { model.draft! }, set: {
             model.draft = $0
             model.succeeded = false
-            model.message = "Unapplied changes. Save & apply to use this curve."
+            model.message = ""
         })
     }
     private var points: Binding<[CurvePoint]> { palm ? settings.palmCurve : settings.curve }
     private func commitFields() { NSApp.keyWindow?.makeFirstResponder(nil) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Cooling curves").font(.title2.weight(.semibold))
-                    Text("Tune your saved Custom curve. The strongest CPU, GPU or palm-rest request wins.")
-                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                if let data = model.data {
-                    Menu("Start from") {
-                        Button("Installed curve") { commitFields(); settings.wrappedValue = data.current }
-                        if let saved = data.saved { Button("Saved Custom curve") { commitFields(); settings.wrappedValue = saved } }
-                        Divider()
-                        ForEach(["quiet", "balanced", "cooler"], id: \.self) { name in
-                            Button(name.capitalized) { commitFields(); settings.wrappedValue = data.presets[name]! }
-                        }
-                    }.fixedSize().disabled(model.busy)
-                }
-            }
+        VStack(alignment: .leading, spacing: 16) {
             if model.draft != nil, let data = model.data {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        Text("Minimum airflow")
-                        TextField("Baseline RPM", value: settings.baselineRPM, format: .number.precision(.fractionLength(0)))
-                            .textFieldStyle(.roundedBorder).frame(width: 80).accessibilityLabel("Baseline RPM")
-                        Text("RPM").foregroundStyle(.secondary)
-                        Spacer()
-                        Text("1,200–2,500 RPM").font(.caption).foregroundStyle(.secondary)
-                    }
-                    Picker("Sensor curve", selection: $palm) {
-                        Text("CPU & GPU").tag(false)
-                        Text("Palm rest").tag(true)
-                    }.pickerStyle(.segmented)
-                    HStack(spacing: 18) {
-                        Label("Left fan", systemImage: "minus").foregroundStyle(Color.accentColor)
-                        Label("Right fan", systemImage: "ellipsis").foregroundStyle(.secondary)
-                        Spacer()
-                        Text("Drag a point or edit its values below").foregroundStyle(.secondary)
-                    }.font(.caption)
-                    if model.draft!.error == nil {
-                        CurveGraph(points: points, baseline: model.draft!.baselineRPM, limits: data.limits, palm: palm)
-                    } else {
-                        Text("Fix the values below to preview the curve.").foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity).frame(height: 224)
-                    }
-                    HStack {
-                        Text("Temperature").frame(width: 105, alignment: .leading)
-                        Text("Fan demand").frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Left / right RPM").frame(width: 150, alignment: .trailing)
-                        Color.clear.frame(width: 24)
-                    }.font(.caption).foregroundStyle(.secondary)
-                    ScrollView {
-                        VStack(spacing: 10) {
-                            // Each row keeps the curve it was made for, so a tab switch can't redirect an edit.
-                            let curve = points
-                            ForEach(curve.wrappedValue.indices, id: \.self) { i in
-                                pointRow(i, in: curve, limits: data.limits)
-                            }
-                        }.padding(.trailing, 3).id(palm)
-                    }.frame(minHeight: 130, maxHeight: 195)
-                    HStack {
-                        Button("Add point") {
-                            commitFields()
-                            let p = points.wrappedValue
-                            if let i = (0..<(p.count - 1)).max(by: { p[$0 + 1].temperature - p[$0].temperature < p[$1 + 1].temperature - p[$1].temperature }) {
-                                points.wrappedValue.insert(CurvePoint(temperature: (p[i].temperature + p[i+1].temperature) / 2,
-                                                                       fraction: (p[i].fraction + p[i+1].fraction) / 2), at: i+1)
-                            }
-                        }.disabled(points.wrappedValue.count >= 20 || model.draft!.error != nil)
-                        Spacer()
-                        Text("100% reaches each fan’s maximum. The last point stays at 100%.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }.disabled(model.busy)
+                editor(data).disabled(model.busy)
+                Divider()
             }
-            Divider()
             HStack(alignment: .center, spacing: 16) {
                 if model.busy { ProgressView().controlSize(.small) }
                 Text(model.draft?.error ?? model.message)
@@ -285,20 +222,94 @@ struct EditorView: View {
                     .accessibilityIdentifier("apply-curve")
                 }
             }
-        }.padding(24).frame(minWidth: 720, idealWidth: 760, minHeight: 650)
-            .onAppear { model.load() }
+        }
+        .padding(24)
+        .frame(minWidth: 680, idealWidth: 760, maxWidth: 1000)
+        .onAppear { model.load() }
+    }
+
+    private func editor(_ data: EditorData) -> some View {
+        // Rows keep the curve they were made for, so a tab switch can't redirect an edit.
+        let curve = points
+        let count = curve.wrappedValue.count
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Minimum airflow")
+                TextField("Baseline RPM", value: settings.baselineRPM, format: .number.precision(.fractionLength(0)))
+                    .textFieldStyle(.roundedBorder).frame(width: 80).accessibilityLabel("Baseline RPM")
+                Text("RPM").foregroundStyle(.secondary)
+                Spacer()
+                Menu("Start from") {
+                    Button("Installed curve") { commitFields(); settings.wrappedValue = data.current }
+                    if let saved = data.saved { Button("Saved Custom curve") { commitFields(); settings.wrappedValue = saved } }
+                    Divider()
+                    ForEach(["quiet", "balanced", "cooler"], id: \.self) { name in
+                        Button(name.capitalized) { commitFields(); settings.wrappedValue = data.presets[name]! }
+                    }
+                }.fixedSize()
+            }
+            HStack(spacing: 18) {
+                Picker("Sensor curve", selection: $palm) {
+                    Text("CPU & GPU").tag(false)
+                    Text("Palm rest").tag(true)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+                Spacer()
+                legend("Left fan", dashed: false, color: .accentColor)
+                legend("Right fan", dashed: true, color: .secondary)
+            }
+            CurveGraph(points: curve, baseline: model.draft!.baselineRPM, limits: data.limits, palm: palm)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text("Temperature").frame(width: 105, alignment: .leading)
+                    Text("Demand").frame(width: 85, alignment: .leading)
+                    Text("Left / right RPM")
+                }.font(.caption).foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(curve.wrappedValue.indices, id: \.self) { i in
+                            pointRow(i, in: curve, limits: data.limits)
+                        }
+                    }.padding(.trailing, 3).id(palm)
+                }
+                // Every point shows up to eight; beyond that the list scrolls with a visible bar.
+                .frame(height: CGFloat(min(count, 8)) * 34)
+                .scrollIndicators(count > 8 ? .visible : .never)
+            }
+            Button("Add point") {
+                commitFields()
+                let p = curve.wrappedValue
+                if let i = (0..<(p.count - 1)).max(by: { p[$0 + 1].temperature - p[$0].temperature < p[$1 + 1].temperature - p[$1].temperature }) {
+                    curve.wrappedValue.insert(CurvePoint(temperature: (p[i].temperature + p[i+1].temperature) / 2,
+                                                         fraction: (p[i].fraction + p[i+1].fraction) / 2), at: i+1)
+                }
+            }.disabled(count >= 20 || model.draft!.error != nil)
+        }
+    }
+
+    private func legend(_ title: String, dashed: Bool, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Path { p in p.move(to: CGPoint(x: 0, y: 5)); p.addLine(to: CGPoint(x: 18, y: 5)) }
+                .stroke(color, style: StrokeStyle(lineWidth: 2, dash: dashed ? [6, 4] : []))
+                .frame(width: 18, height: 10)
+            Text(title).foregroundStyle(.secondary)
+        }.font(.caption)
     }
 
     private func pointRow(_ index: Int, in curve: Binding<[CurvePoint]>, limits: [FanLimit]) -> some View {
         // A row can outlive a shorter curve for one update (after Remove or a tab switch),
         // so it reads and writes its point only while that point still exists.
-        func value(_ key: WritableKeyPath<CurvePoint, Double>, scale: Double = 1) -> Binding<Double> {
+        func bound(_ key: WritableKeyPath<CurvePoint, Double>, scale: Double = 1) -> Binding<Double> {
             Binding(get: { index < curve.wrappedValue.count ? curve.wrappedValue[index][keyPath: key] * scale : 0 },
                     set: { if index < curve.wrappedValue.count { curve.wrappedValue[index][keyPath: key] = $0 / scale } })
         }
-        let temperature = value(\.temperature), demand = value(\.fraction, scale: 100)
+        let temperature = bound(\.temperature), demand = bound(\.fraction, scale: 100)
         let last = index >= curve.wrappedValue.count - 1
         let fraction = index < curve.wrappedValue.count ? curve.wrappedValue[index].fraction : 0
+        let speeds = limits.map { limit -> String in
+            let floor = max(model.draft!.baselineRPM, limit.minimum)
+            let speed = floor + (limit.maximum - floor) * fraction
+            return speed.isFinite ? speed.formatted(.number.precision(.fractionLength(0))) : "?"
+        }
         return HStack(spacing: 10) {
             HStack(spacing: 4) {
                 TextField("Temperature", value: temperature, format: .number.precision(.fractionLength(0...1)))
@@ -306,20 +317,15 @@ struct EditorView: View {
                     .accessibilityLabel("Point \(index + 1) temperature")
                 Text("°C").foregroundStyle(.secondary)
             }.frame(width: 105, alignment: .leading)
-            Slider(value: demand, in: 0...100, step: 1)
-                .disabled(last)
-                .accessibilityLabel("Point \(index + 1) fan demand")
-            TextField("Demand", value: demand, format: .number.precision(.fractionLength(0...1)))
-                .textFieldStyle(.roundedBorder).frame(width: 55)
-                .disabled(last)
-                .accessibilityLabel("Point \(index + 1) demand percent")
-            Text("%").foregroundStyle(.secondary)
-            let values = limits.map { limit -> String in
-                let floor = max(model.draft!.baselineRPM, limit.minimum)
-                let value = floor + (limit.maximum - floor) * fraction
-                return value.isFinite ? value.formatted(.number.precision(.fractionLength(0))) : "?"
-            }
-            Text(values.joined(separator: " / ")).monospacedDigit().frame(width: 150, alignment: .trailing)
+            HStack(spacing: 4) {
+                TextField("Demand", value: demand, format: .number.precision(.fractionLength(0...1)))
+                    .textFieldStyle(.roundedBorder).frame(width: 55)
+                    .disabled(last)
+                    .accessibilityLabel("Point \(index + 1) demand percent")
+                Text("%").foregroundStyle(.secondary)
+            }.frame(width: 85, alignment: .leading)
+            Text(speeds.joined(separator: " / ")).monospacedDigit()
+            Spacer()
             Button {
                 commitFields()
                 if index < curve.wrappedValue.count { curve.wrappedValue.remove(at: index) }
@@ -333,8 +339,7 @@ struct EditorView: View {
 
 @main struct CoolerCurvesApp: App {
     var body: some Scene {
-        Window("Cooling curves", id: "curves") { EditorView() }
-            .defaultSize(width: 760, height: 730)
-            .windowResizability(.contentMinSize)
+        Window("Custom Curve", id: "curves") { EditorView() }
+            .windowResizability(.contentSize)
     }
 }

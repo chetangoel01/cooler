@@ -8,7 +8,8 @@ row outlives the shorter curve and reads past its end); switching between curves
 with different point counts crashes; a demand edit in progress lands in the other
 sensor curve after switching tabs; the test changes the installed or saved curve;
 the test discards a draft the user has open; a crash dialog or editor window is
-left on screen.
+left on screen. Layout pass, written before its code: a point is hidden below the
+list with no visible way to reach it.
 
 It never presses Save & apply. It refuses to start while the editor is open. It
 uses only accessibility actions on the editor's own controls, never keystrokes or
@@ -102,6 +103,26 @@ try:
         except RuntimeError:
             assert time.time() < deadline, "The editor did not load its curves"
             time.sleep(0.5)
+
+    geometry = ax(f'''tell application "System Events" to tell process "CoolerCurves"
+    set lastField to my findElement("AXTextField", "Point {len(cpu)} temperature")
+    set {{fx, fy}} to position of lastField
+    set {{fw, fh}} to size of lastField
+    set listArea to missing value
+    set allElements to entire contents of window 1
+    repeat with i from 1 to count of allElements
+        try
+            if role of (item i of allElements) is "AXScrollArea" then set listArea to item i of allElements
+        end try
+    end repeat
+    set {{sx, sy}} to position of listArea
+    set {{sw, sh}} to size of listArea
+    return ((round fy) as text) & "," & ((round fh) as text) & "," & ((round sy) as text) & "," & ((round sh) as text)
+end tell''')
+    fy, fh, sy, sh = map(int, geometry.split(","))
+    details["last_point_bottom"], details["list_bottom"] = fy + fh, sy + sh
+    assert sy - 1 <= fy and fy + fh <= sy + sh + 1, f"Point {len(cpu)} is hidden below the list: {details}"
+    checks.append(f"All {len(cpu)} CPU & GPU points are visible without scrolling")
 
     click("AXRadioButton", "Palm rest")
     details["palm_point_2_demand"] = value("Point 2 demand percent")
