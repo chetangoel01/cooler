@@ -12,6 +12,8 @@ Deployed September 26, 2026 and verified running with the custom curve. All **11
 
 Evidence: [live report](artifacts/live-report.json) and [deployment verification](artifacts/deployment-verification.json). Actual sleep/wake, a full reboot, and everyday temperature/noise comfort remain unverified; boot startup is configured through launchd.
 
+**Heavy-load stalls, September 26 evening:** sustained heavy load starved the controller until its watchdog stopped it; see [Recovery and limits](#recovery-and-limits). The fix, launchd's Interactive process type, was installed at 23:31 that night. launchd now reports an interactive process, the controller and watchdog run at priority 31 instead of 20, and the [cadence check](artifacts/cadence-report.json) found a steady loop and no watchdog timeouts. That sample peaked at 80°C, below the 99–107°C of the stalls, so the fix is not yet confirmed under comparable heat; running `python3 tests/cadence.py` after a hot stretch counts every timeout since installation. The [baseline report](artifacts/cadence-before.json) records the old priority 20 and nine timeouts.
+
 ## Cooling policy
 
 `config.json` is the original **Cooler** profile. Installation copies it into `/Library/Application Support/Cooler/config.json`, owned by root. SwiftBar profile selection replaces the installed configuration; reinstalling the controller resets it to the source profile. These are starting comfort profiles, not a promise that the laptop can maintain any particular temperature.
@@ -128,6 +130,8 @@ Missing/invalid sensors, invalid fan limits, critical macOS thermal pressure, an
 
 An independent watchdog watches a pipe from the controller. If it exits or stalls for ten awake seconds, the watchdog restores automatic control. On a stall it first kills the controller to prevent competing writes. macOS launchd restarts failed processes. If the watchdog itself exits, the controller also restores automatic mode and exits. Duplicate controllers are rejected by an exclusive lock.
 
+launchd runs Cooler as an **Interactive** process. As a standard daemon it ran at utility priority 20 with throttled I/O. On the evening of September 26, sustained heavy load (CPU 99–107°C, load average near 50 on 10 cores) starved it past the ten-second limit nine times in two hours, sometimes again before a restarted controller's first heartbeat. Each time the fans returned to automatic control and launchd restarted Cooler. Interactive gives the controller and its watchdog normal priority (31) without throttled I/O. Profile changes reload the same installed plist, so every Cooler profile keeps it. This cause was diagnosed from the log and priorities, not reproduced with a synthetic load.
+
 These are software recovery measures, not firmware guarantees. Simultaneously killing both processes can leave the last manual setting until launchd restarts the service. A whole-system hang or hardware/SMC failure cannot be recovered by this process. Sleep/wake and reboot behavior require real-device checks; a replay of a time gap is not a substitute. CPU/GPU load, charging, and room temperature all affect achievable cooling.
 
 ## Verification
@@ -135,6 +139,8 @@ These are software recovery measures, not firmware guarantees. Simultaneously ki
 `tests/e2e.py` drives the compiled CLI with simulated sensor/fan input, using the same decision and write transaction as the daemon. It covers CPU-only and GPU-only heat, warm palms, baseline RPM, immediate increases, gradual decreases, missing/invalid sensors, three-sample recovery, conflicts, partial writes, wake gaps, invalid hardware limits, and malformed configuration. The replay mode performs no hardware access.
 
 The failure inventory was written before implementation: incorrect SMC layout/types; non-finite, missing, or partial readings; invalid limits; hidden CPU/GPU hotspots; fan oscillation; partial writes; process crashes/stalls; sleep/wake; competing controllers; wrong hardware; malformed configuration; duplicate processes; unsafe installation permissions; and removal leaving fans in manual mode.
+
+`python3 tests/cadence.py` checks the installed service under this Mac's real workload without changing anything. It confirms launchd's process type and both processes' priorities, samples status updates for two minutes using the file's kernel timestamps, and lists watchdog timeouts logged since the plist was installed. A quiet sample proves little: the report says whether it saw heavy load, meaning CPU at 95°C or above as in every logged stall, so run it during heavy use or with `--seconds 1800`. Load average is reported but not used; it exceeded 70 while the CPU was half idle. Its report is `artifacts/cadence-report.json`; `artifacts/cadence-before.json` is the same check on the old standard-daemon setup.
 
 `tests/lifecycle.py` runs the compiled dry-run CLI and its real watchdog under normal termination, SIGKILL, SIGSTOP, and watchdog loss. It uses the same supervision code and real process pipes/signals, but its recovery callback only logs; it never writes fans.
 

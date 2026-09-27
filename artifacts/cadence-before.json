@@ -1,0 +1,55 @@
+{
+  "time": "2026-09-27T03:02:08.246283+00:00",
+  "since": "2026-09-26T21:22:00+00:00",
+  "service_start": {
+    "pid": 78766,
+    "spawn_type": "daemon (3)",
+    "controller_priority": 20,
+    "watchdog_pid": 78773,
+    "watchdog_priority": 20
+  },
+  "service_end": {
+    "pid": 78766,
+    "spawn_type": "daemon (3)",
+    "controller_priority": 20,
+    "watchdog_pid": 78773,
+    "watchdog_priority": 20
+  },
+  "sample": {
+    "seconds": 120.0,
+    "status_updates": 47,
+    "median_gap_s": 2.64,
+    "max_gap_s": 2.81,
+    "gaps_over_4s": 0,
+    "controller_pids": [
+      78766
+    ],
+    "peak_cpu_c": 72.7,
+    "peak_load_1m": 21.2,
+    "observer_max_loop_gap_s": 0.08
+  },
+  "log_since": {
+    "heartbeat_timeouts": [
+      "2026-09-26T23:48:10Z",
+      "2026-09-27T00:17:20Z",
+      "2026-09-27T00:23:06Z",
+      "2026-09-27T00:23:21Z",
+      "2026-09-27T00:23:36Z",
+      "2026-09-27T00:27:03Z",
+      "2026-09-27T00:27:18Z",
+      "2026-09-27T01:37:24Z",
+      "2026-09-27T01:37:36Z"
+    ],
+    "controller_starts": 15
+  },
+  "checks": {
+    "launchd runs Cooler as an interactive process": false,
+    "controller priority is at least 31": false,
+    "watchdog priority is at least 31": false,
+    "no watchdog timeouts in the log since --since": false,
+    "status updates never paused for 8 seconds or more": true
+  },
+  "passed": false,
+  "heavy_load_observed": false,
+  "conclusion": "Failed"
+}

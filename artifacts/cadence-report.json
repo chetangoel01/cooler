@@ -1,0 +1,45 @@
+{
+  "time": "2026-09-27T03:37:22.954729+00:00",
+  "since": "2026-09-27T03:31:40.974049+00:00",
+  "service_start": {
+    "pid": 10101,
+    "spawn_type": "interactive (4)",
+    "controller_priority": 31,
+    "watchdog_pid": 10104,
+    "watchdog_priority": 31
+  },
+  "service_end": {
+    "pid": 10101,
+    "spawn_type": "interactive (4)",
+    "controller_priority": 31,
+    "watchdog_pid": 10104,
+    "watchdog_priority": 31
+  },
+  "sample": {
+    "seconds": 120.0,
+    "status_updates": 48,
+    "median_gap_s": 2.53,
+    "max_gap_s": 2.7,
+    "gaps_over_4s": 0,
+    "controller_pids": [
+      10101
+    ],
+    "peak_cpu_c": 79.7,
+    "peak_load_1m": 60.0,
+    "observer_max_loop_gap_s": 0.1
+  },
+  "log_since": {
+    "heartbeat_timeouts": [],
+    "controller_starts": 1
+  },
+  "checks": {
+    "launchd runs Cooler as an interactive process": true,
+    "controller priority is at least 31": true,
+    "watchdog priority is at least 31": true,
+    "no watchdog timeouts in the log since --since": true,
+    "status updates never paused for 8 seconds or more": true
+  },
+  "passed": true,
+  "heavy_load_observed": false,
+  "conclusion": "Passed, but the sample saw no heavy load; rerun during heavy use"
+}
