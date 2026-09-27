@@ -144,6 +144,21 @@ if [[ $PUBLISH == 1 ]]; then
     sed -e "s/^  version \".*\"/  version \"$VERSION\"/" -e "s/^  sha256 \".*\"/  sha256 \"$SHA256\"/" \
         packaging/cooler.rb > "$TAP_DIR/Casks/cooler.rb"
     git -C "$TAP_DIR" add Casks/cooler.rb
+    if ! grep -q '^## Cooler' "$TAP_DIR/README.md"; then
+        cat >> "$TAP_DIR/README.md" <<'README'
+
+## Cooler
+
+```bash
+brew install chetangoel01/tap/cooler
+```
+
+Fan curves and menu bar temperatures for the 16-inch M1 Max MacBook Pro.
+Upgrade with `brew upgrade cooler`. Source and releases:
+https://github.com/chetangoel01/cooler
+README
+        git -C "$TAP_DIR" add README.md
+    fi
     git -C "$TAP_DIR" commit -qm "cooler $VERSION"
     git -C "$TAP_DIR" push -q origin main
 fi
