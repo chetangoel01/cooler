@@ -36,6 +36,11 @@ if [ "$first" = 1 ]; then
   /usr/bin/install -o root -g wheel -m 644 "$resources/config.json" "$base/config.json"
 fi
 /usr/bin/install -o root -g wheel -m 644 "$resources/com.chetangoel.cooler.plist" "$plist"
+# Files copied out of the downloaded app keep its quarantine flag, and launchd
+# refuses to load a quarantined daemon plist.
+for installed in "$plist" "$base/cooler" "$base/uninstall.sh" "$base/config.json"; do
+  /usr/bin/xattr -d com.apple.quarantine "$installed" 2>/dev/null || true
+done
 "$base/cooler" auto
 if [ "$first" = 1 ]; then "$base/cooler" hardware-check >/dev/null; fi
 if [ "$off" = 1 ]; then

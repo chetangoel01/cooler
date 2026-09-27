@@ -9,6 +9,8 @@ upgrade instead of only the first install; uninstall leaves the daemon loaded,
 the fans in manual mode, or its plist behind; uninstall deletes the profile the
 next install should keep; an install proceeds while another fan controller runs;
 an install on another Mac model starts a controller that cannot work there.
+Found in the first Homebrew install: files copied out of the downloaded app keep
+its quarantine flag, and launchd refuses to load a quarantined daemon plist.
 
 Runs packaging/install-daemon.sh and uninstall.sh with simulated launchd, sysctl,
 pgrep, install and SMC operations in a temporary root. No root, launchd, or fan
@@ -26,7 +28,7 @@ LIVE_PLIST = "/Library/LaunchDaemons/com.chetangoel.cooler.plist"
 TOOLS = {"launchctl": "/bin/launchctl", "pgrep": "/usr/bin/pgrep", "sysctl": "/usr/sbin/sysctl",
          "id": "/usr/bin/id", "install": "/usr/bin/install"}
 BACKEND = r'''#!/opt/homebrew/bin/python3
-import json, pathlib, shutil, sys
+import json, pathlib, subprocess, sys
 p = pathlib.Path(WORK)  # also valid for the copy installed as the controller
 state = json.loads((p / "state.json").read_text())
 command, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
@@ -36,15 +38,12 @@ if command == "id": print(0)
 elif command == "sysctl": print(state["model"])
 elif command == "pgrep": code = 0 if state["competitor"] else 1
 elif command == "install":
-    mode, rest = None, []
-    i = 0
+    # The real install, minus root ownership, so extended attributes carry over as they do on a Mac.
+    kept, i = [], 0
     while i < len(args):
         if args[i] in ("-o", "-g"): i += 2; continue
-        if args[i] == "-m": mode = int(args[i + 1], 8); i += 2; continue
-        rest.append(args[i]); i += 1
-    if rest[0] == "-d": pathlib.Path(rest[1]).mkdir(parents=True, exist_ok=True)
-    else:
-        shutil.copyfile(rest[0], rest[1]); pathlib.Path(rest[1]).chmod(mode)
+        kept.append(args[i]); i += 1
+    code = subprocess.run(["/usr/bin/install", *kept]).returncode
 elif command == "launchctl":
     verb = args[0]
     if verb == "print-disabled":
@@ -54,7 +53,11 @@ elif command == "launchctl":
     elif verb == "enable": state["disabled"] = False
     elif verb == "bootstrap":
         assert not state["disabled"] and pathlib.Path(args[2]).exists()
-        state["loaded"] = True
+        quarantined = subprocess.run(["/usr/bin/xattr", "-p", "com.apple.quarantine", args[2]],
+                                     capture_output=True).returncode == 0
+        if quarantined:
+            print("Bootstrap failed: 5: Input/output error", file=sys.stderr); code = 5
+        else: state["loaded"] = True
 elif command == "cooler":
     if args[0] == "auto" and state["loaded"]: code = 43
 (p / "state.json").write_text(json.dumps(state))
@@ -76,6 +79,7 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     helper.symlink_to(backend)
     for name in ["config.json", "com.chetangoel.cooler.plist", "uninstall.sh"]:
         (resources / name).write_bytes((ROOT / name).read_bytes())
+    QUARANTINE = ["com.apple.quarantine", "0083;00000000;Homebrew Cask;"]
 
     def script(path):
         text = path.read_text().replace(shlex.quote(LIVE_BASE), shlex.quote(str(base)))
@@ -89,6 +93,12 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     installer, uninstaller = script(ROOT / "packaging/install-daemon.sh"), script(ROOT / "uninstall.sh")
     # The installed uninstaller must be the rewritten copy too, as the real one points at live paths.
     (resources / "uninstall.sh").write_text(uninstaller.read_text())
+    # Homebrew keeps the quarantine flag on the downloaded app, so everything installed from it has one.
+    helper.unlink()
+    helper.write_text(BACKEND.replace("WORK", repr(str(work)), 1))
+    helper.chmod(0o755)
+    for path in [helper, *resources.iterdir()]:
+        subprocess.run(["/usr/bin/xattr", "-w", *QUARANTINE, str(path)], check=True)
 
     def run(target, **state):
         current = {"model": "MacBookPro18,4", "competitor": False, "loaded": False, "disabled": False}
@@ -112,6 +122,10 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     assert state["loaded"] and cooler_calls(events).count("hardware-check") == 1
     assert (base / "uninstall.sh").exists() and (base / "cooler").stat().st_mode & 0o777 == 0o755
     checks.append("A first install writes the default profile, checks the fans once, and starts Cooler")
+    flagged = [p.name for p in [plist, base / "cooler", base / "uninstall.sh", base / "config.json"]
+               if subprocess.run(["/usr/bin/xattr", "-p", QUARANTINE[0], str(p)], capture_output=True).returncode == 0]
+    assert not flagged, f"Installed files kept the download's quarantine flag: {flagged}"
+    checks.append("Installed files drop the downloaded app's quarantine flag, so launchd loads the daemon")
 
     maximum = json.loads((ROOT / "config.json").read_text())
     maximum.update(baselineRPM=1800, curve=[{"temperature": 10, "fraction": 1}, {"temperature": 90, "fraction": 1}])
