@@ -154,6 +154,7 @@ struct CurveGraph: View {
                         .position(x: x(points[index].temperature), y: y(rpm(points[index].fraction, 0)))
                         .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("graph"))
                             .onChanged { event in
+                                guard points.indices.contains(index) else { return }
                                 if dragRange == nil { dragRange = lower...upper }
                                 let t = lower + (event.location.x - 54) / width * (upper - lower)
                                 let floor = max(baseline, limits[0].minimum)
@@ -199,11 +200,11 @@ struct EditorView: View {
                 Spacer()
                 if let data = model.data {
                     Menu("Start from") {
-                        Button("Installed curve") { settings.wrappedValue = data.current }
-                        if let saved = data.saved { Button("Saved Custom curve") { settings.wrappedValue = saved } }
+                        Button("Installed curve") { commitFields(); settings.wrappedValue = data.current }
+                        if let saved = data.saved { Button("Saved Custom curve") { commitFields(); settings.wrappedValue = saved } }
                         Divider()
                         ForEach(["quiet", "balanced", "cooler"], id: \.self) { name in
-                            Button(name.capitalized) { settings.wrappedValue = data.presets[name]! }
+                            Button(name.capitalized) { commitFields(); settings.wrappedValue = data.presets[name]! }
                         }
                     }.fixedSize().disabled(model.busy)
                 }
@@ -242,10 +243,12 @@ struct EditorView: View {
                     }.font(.caption).foregroundStyle(.secondary)
                     ScrollView {
                         VStack(spacing: 10) {
-                            ForEach(points.wrappedValue.indices, id: \.self) { i in
-                                pointRow(i, limits: data.limits)
+                            // Each row keeps the curve it was made for, so a tab switch can't redirect an edit.
+                            let curve = points
+                            ForEach(curve.wrappedValue.indices, id: \.self) { i in
+                                pointRow(i, in: curve, limits: data.limits)
                             }
-                        }.padding(.trailing, 3)
+                        }.padding(.trailing, 3).id(palm)
                     }.frame(minHeight: 130, maxHeight: 195)
                     HStack {
                         Button("Add point") {
@@ -286,33 +289,43 @@ struct EditorView: View {
             .onAppear { model.load() }
     }
 
-    private func pointRow(_ index: Int, limits: [FanLimit]) -> some View {
-        HStack(spacing: 10) {
+    private func pointRow(_ index: Int, in curve: Binding<[CurvePoint]>, limits: [FanLimit]) -> some View {
+        // A row can outlive a shorter curve for one update (after Remove or a tab switch),
+        // so it reads and writes its point only while that point still exists.
+        func value(_ key: WritableKeyPath<CurvePoint, Double>, scale: Double = 1) -> Binding<Double> {
+            Binding(get: { index < curve.wrappedValue.count ? curve.wrappedValue[index][keyPath: key] * scale : 0 },
+                    set: { if index < curve.wrappedValue.count { curve.wrappedValue[index][keyPath: key] = $0 / scale } })
+        }
+        let temperature = value(\.temperature), demand = value(\.fraction, scale: 100)
+        let last = index >= curve.wrappedValue.count - 1
+        let fraction = index < curve.wrappedValue.count ? curve.wrappedValue[index].fraction : 0
+        return HStack(spacing: 10) {
             HStack(spacing: 4) {
-                TextField("Temperature", value: points[index].temperature, format: .number.precision(.fractionLength(0...1)))
+                TextField("Temperature", value: temperature, format: .number.precision(.fractionLength(0...1)))
                     .textFieldStyle(.roundedBorder).frame(width: 67)
                     .accessibilityLabel("Point \(index + 1) temperature")
                 Text("°C").foregroundStyle(.secondary)
             }.frame(width: 105, alignment: .leading)
-            let demand = Binding<Double>(get: { points.wrappedValue[index].fraction * 100 },
-                                         set: { points.wrappedValue[index].fraction = $0 / 100 })
             Slider(value: demand, in: 0...100, step: 1)
-                .disabled(index == points.wrappedValue.count - 1)
+                .disabled(last)
                 .accessibilityLabel("Point \(index + 1) fan demand")
             TextField("Demand", value: demand, format: .number.precision(.fractionLength(0...1)))
                 .textFieldStyle(.roundedBorder).frame(width: 55)
-                .disabled(index == points.wrappedValue.count - 1)
+                .disabled(last)
                 .accessibilityLabel("Point \(index + 1) demand percent")
             Text("%").foregroundStyle(.secondary)
             let values = limits.map { limit -> String in
                 let floor = max(model.draft!.baselineRPM, limit.minimum)
-                let value = floor + (limit.maximum - floor) * points.wrappedValue[index].fraction
+                let value = floor + (limit.maximum - floor) * fraction
                 return value.isFinite ? value.formatted(.number.precision(.fractionLength(0))) : "?"
             }
             Text(values.joined(separator: " / ")).monospacedDigit().frame(width: 150, alignment: .trailing)
-            Button { points.wrappedValue.remove(at: index) } label: { Image(systemName: "minus.circle") }
+            Button {
+                commitFields()
+                if index < curve.wrappedValue.count { curve.wrappedValue.remove(at: index) }
+            } label: { Image(systemName: "minus.circle") }
                 .buttonStyle(.borderless).frame(width: 24)
-                .disabled(points.wrappedValue.count <= 2 || index == points.wrappedValue.count - 1)
+                .disabled(curve.wrappedValue.count <= 2 || last)
                 .help("Remove point \(index + 1)").accessibilityLabel("Remove point \(index + 1)")
         }
     }

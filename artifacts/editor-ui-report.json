@@ -1,0 +1,13 @@
+{
+  "time": "2026-09-27T05:57:31.934075+00:00",
+  "checks": [
+    "Removing a point keeps the editor running and shortens the curve",
+    "Switching between curves with different point counts and removing again keeps it running",
+    "Closed without applying; no crash report, dialog, or change to the installed or saved curve"
+  ],
+  "passed": 3,
+  "details": {
+    "palm_point_2_demand": "25"
+  },
+  "applied_changes": false
+}
