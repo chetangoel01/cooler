@@ -199,8 +199,9 @@ with tempfile.TemporaryDirectory(prefix="cooler-live-monitor-") as cache:
     assert "CPU\tUnavailable" not in result.stdout and "No recent update" not in result.stdout
     ARTIFACTS.mkdir(exist_ok=True)
     # Keep the saved menu's curve link usable after the temporary cache is removed.
+    # The saved menu links its curve page relatively and shows the home folder as ~.
     (ARTIFACTS / "monitor-menu.txt").write_text(result.stdout.replace(
-        (Path(cache) / "curves.html").as_uri(), (ARTIFACTS / "monitor-curves.html").as_uri()))
+        (Path(cache) / "curves.html").as_uri(), "monitor-curves.html").replace(str(Path.home()), "~"))
     (ARTIFACTS / "monitor-curves.html").write_text((Path(cache) / "curves.html").read_text())
     checks.append("Installed controller read successfully without administrator access")
 

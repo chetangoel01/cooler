@@ -1,0 +1,11 @@
+{
+  "checks": [
+    "A first install writes the default profile, checks the fans once, and starts Cooler",
+    "Uninstall stops Cooler, restores automatic control, removes it, and keeps the profile",
+    "An upgrade keeps the selected profile and skips the full-speed check",
+    "An upgrade after Apple Automatic installs Cooler but leaves it off",
+    "No controller is installed while another fan app runs or on another Mac model"
+  ],
+  "passed": 5,
+  "hardware_writes": false
+}

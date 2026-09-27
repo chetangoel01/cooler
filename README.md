@@ -2,9 +2,15 @@
 
 A personal background fan controller for **MacBookPro18,4 / M1 Max**. It keeps a low airflow floor and raises both fans according to the hottest configured CPU, GPU, or palm-rest reading. It starts when macOS boots and runs without a window or menu-bar item.
 
-Source: `/Users/chetangoel/CodexProjects/cooler`. No external runtime or network access. Swift and IOKit; build requires Xcode Command Line Tools.
+The controller is Swift and IOKit, with no external runtime or network access. A **SwiftBar plugin** provides a menu-bar temperature, readings, profile controls, and a local curve viewer. **Cooler.app**, a small native editor opened from the menu, edits the custom curve and carries the controller for installation. The plugin uses Homebrew Python 3; the controller itself has no external runtime dependencies.
 
-An optional **SwiftBar plugin** provides a menu-bar temperature, readings, profile controls, and a local curve viewer. **Cooler Curves**, a small native editor opened from the menu, edits the custom curve. The plugin uses the existing Homebrew Python 3 installation; the controller itself still has no external runtime dependencies.
+## Install with Homebrew
+
+```sh
+brew install chetangoel01/tap/cooler
+```
+
+This installs Cooler.app, plus SwiftBar and Homebrew Python as dependencies, then asks for your administrator password to install the controller. It adds the SwiftBar plugin and the login agent that opens SwiftBar at login. A first install writes the default Cooler profile and briefly runs both fans at full speed to confirm control. `brew upgrade cooler` keeps the selected profile, keeps Cooler off if Apple Automatic was selected, and skips the full-speed check. `brew uninstall cooler` stops Cooler, returns the fans to Apple automatic, and keeps the profile for a reinstall; `brew uninstall --zap cooler` removes it and the saved Custom curve too. The controller runs only on a MacBookPro18,4. These install and upgrade rules are checked by `python3 tests/cask.py` (`artifacts/cask-report.json`), and the cask has been installed on one Mac, this one.
 
 ## Current deployment status
 
@@ -36,8 +42,10 @@ See the [comparison with recorded Apple automatic targets](artifacts/curve-compa
 
 Quit Macs Fan Control first and turn off its automatic startup. Keep it installed if desired, but do not run two fan controllers together. Cooler detects Macs Fan Control, Stats, TG Pro, smcFanControl, and macfan by process name, relinquishes control, and waits while any runs. This list cannot detect every possible tool.
 
+To build and install the controller from source instead (this resets the installed profile to `config.json` and runs the on-device checks):
+
 ```sh
-cd /Users/chetangoel/CodexProjects/cooler
+cd cooler
 ./build.sh
 python3 tests/e2e.py
 python3 tests/lifecycle.py
@@ -58,13 +66,13 @@ Status includes the PID that wrote it and updates every two seconds. A fresh fil
 
 To tune the profile, use **Edit Custom Curve…** in SwiftBar (below). For source defaults, edit `config.json`, run `check` and the replay tests, then rerun `sudo ./install.sh`. Do not edit the installed file in place; the running service reads its configuration at startup.
 
-Remove the service and return both fans to Apple automatic control:
+Remove the service and return both fans to Apple automatic control with `brew uninstall cooler`, or for a source install:
 
 ```sh
 sudo '/Library/Application Support/Cooler/uninstall.sh'
 ```
 
-Removal preserves this repository, test reports, and `/var/log/cooler.log`. Re-enable Macs Fan Control startup yourself if you want to return to it.
+Removal keeps the selected profile (`config.json`), this repository, test reports, and `/var/log/cooler.log`; `brew uninstall --zap cooler` removes the profile and log too. Re-enable Macs Fan Control startup yourself if you want to return to it.
 
 ## Menu-bar monitor
 
@@ -94,23 +102,26 @@ Installed locations:
 
 - App: `/Applications/SwiftBar.app` (Homebrew cask, version 2.1.1 at setup).
 - Plugin: `~/Library/Application Support/SwiftBar/Plugins/cooler.5s.py`, copied from `monitor/cooler.5s.py`.
-- Native editor: `~/Library/Application Support/Cooler/Cooler Curves.app`, built from `monitor/CurveEditor.swift`.
+- Native editor: `/Applications/Cooler.app`, built from `monitor/CurveEditor.swift` by `scripts/release.sh`. The controller ships inside it at `Contents/Helpers/cooler`.
 - Saved Custom curve: `~/Library/Application Support/Cooler/custom.json`. This user-owned file is only a proposed configuration when selected; the installed controller validates it again before applying it to the protected system configuration.
 - Login startup: `~/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist`. It opens SwiftBar at login; quitting SwiftBar keeps it closed for that session. This is separate from SwiftBar's own Launch at Login checkbox, which can remain off. Actual logout/login remains untested.
 - Curve page: SwiftBar's per-plugin cache. Running the script directly uses `~/Library/Caches/CoolerMonitor/curves.html` instead.
 
-To install or update the monitor on this Mac, with Homebrew Python already at `/opt/homebrew/bin/python3`:
+The Homebrew cask installs all of this. To try plugin changes from source, with Homebrew Python already at `/opt/homebrew/bin/python3`:
 
 ```sh
-cd /Users/chetangoel/CodexProjects/cooler
-brew install --cask swiftbar
+cd cooler
 /bin/sh monitor/install.sh
 python3 tests/monitor.py
 python3 tests/profiles.py
 python3 tests/curves.py
 ```
 
-Open SwiftBar once and select that Plugins folder. Allow SwiftBar in **System Settings → Menu Bar** if its item is hidden. Rerun `monitor/install.sh` after changing monitor/editor source. The installer needs Command Line Tools, builds and signs the native editor locally, and replaces the user-owned monitor files without changing the root controller or active curve. An open editor keeps its draft; reopen it after saving to load a newly installed version. The login agent takes effect on the next login. To remove just the monitor, quit SwiftBar and Cooler Curves, remove the plugin, login plist and editor app, and remove SwiftBar if no other plugins use it; Cooler continues controlling the fans independently. Keep `custom.json` if you want to preserve the custom curve.
+Open SwiftBar once and select that Plugins folder. Allow SwiftBar in **System Settings → Menu Bar** if its item is hidden. `monitor/install.sh` replaces only the plugin and login agent, without changing the root controller or active curve. The editor is Cooler.app; `./scripts/release.sh --no-notarize` builds a signed copy in `build/release/export`. The login agent takes effect on the next login. To remove just the monitor, quit SwiftBar and Cooler, remove the plugin, login plist and `/Applications/Cooler.app`, and remove SwiftBar if no other plugins use it; the controller continues independently. Keep `custom.json` if you want to preserve the custom curve.
+
+## Releasing
+
+Bump `CFBundleShortVersionString` in `app/Info.plist`, commit, then run `./scripts/release.sh`. It generates the Xcode project from `project.yml`, archives with Developer ID signing, notarizes and staples the app and DMG, tags the version, publishes a GitHub release with the DMG attached, and writes `packaging/cooler.rb` with the new version and checksum into [chetangoel01/homebrew-tap](https://github.com/chetangoel01/homebrew-tap). Pass `--no-publish` to stop after the notarized DMG, or `--no-notarize` to build and sign locally without uploading anything. Requires a notarytool keychain profile for the team (`NOTARY_PROFILE`, default `meeting-recorder`), `xcodegen`, `create-dmg`, and an authenticated `gh` CLI.
 
 `tests/monitor.py` runs the complete plugin against controlled files and fake read-only hardware/service queries, then performs a real read-only run. It checks legible readings, targets under Option, curve configuration, automatic/yielded modes, old process status, stale/missing/corrupt status, warning icons, that old successes never read as live control, a stalled probe, sanitized dynamic text, reachable editor and curves page, live temperatures with the daemon stopped, and the read-only refresh boundary. Fixtures use a temporary home folder, so they never touch the real saved curve or action state. Rerunnable evidence is saved in `artifacts/monitor-report.json`, `artifacts/monitor-menu.txt`, and `artifacts/monitor-curves.html`.
 

@@ -25,19 +25,20 @@ import datetime as dt
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = Path.home() / "Library/Application Support/Cooler/Cooler Curves.app"
+APP = Path(os.environ.get("COOLER_APP", "/Applications/Cooler.app"))
 PLUGIN = Path.home() / "Library/Application Support/SwiftBar/Plugins/cooler.5s.py"
 REPORTS = Path.home() / "Library/Logs/DiagnosticReports"
 WATCHED = [Path("/Library/Application Support/Cooler/config.json"),
            Path.home() / "Library/Application Support/Cooler/custom.json"]
 FIND = '''
 on findElement(roleName, label)
-    tell application "System Events" to tell process "CoolerCurves"
+    tell application "System Events" to tell process "Cooler"
         set allElements to entire contents of window 1
         repeat with i from 1 to count of allElements
             set e to item i of allElements
@@ -66,7 +67,7 @@ def ax(body):
 
 
 def running():
-    return subprocess.run(["pgrep", "-x", "CoolerCurves"], capture_output=True).returncode == 0
+    return subprocess.run(["pgrep", "-x", "Cooler"], capture_output=True).returncode == 0
 
 
 def click(role, label):
@@ -89,7 +90,7 @@ def digest(path):
 
 
 assert not running(), "Close Cooler Curves first; this test will not discard an open draft."
-reports = {p.name for p in REPORTS.glob("CoolerCurves-*")}
+reports = {p.name for p in REPORTS.glob("Cooler*")}
 hashes = [digest(p) for p in WATCHED]
 # The draft the editor opens with, chosen by the editor's own rule.
 data = json.loads(subprocess.run(["/opt/homebrew/bin/python3", str(PLUGIN), "--editor-data"],
@@ -109,7 +110,7 @@ try:
             assert time.time() < deadline, "The editor did not load its curves"
             time.sleep(0.5)
 
-    size = ax('''tell application "System Events" to tell process "CoolerCurves" to set windowSize to size of window 1
+    size = ax('''tell application "System Events" to tell process "Cooler" to set windowSize to size of window 1
 return ((item 1 of windowSize) as text) & "," & ((item 2 of windowSize) as text)''')
     width, height = map(int, size.split(","))
     details["window"] = f"{width}x{height}"
@@ -139,12 +140,12 @@ return ((item 1 of windowSize) as text) & "," & ((item 2 of windowSize) as text)
     checks.append("Switching between curves with different point counts and removing again keeps it running")
 finally:
     if running():
-        subprocess.run(["osascript", "-e", 'tell application id "com.chetangoel.cooler-curves" to quit'],
+        subprocess.run(["osascript", "-e", 'tell application id "com.chetangoel.cooler" to quit'],
                        capture_output=True, timeout=30)
         time.sleep(2)
 
 assert not running(), "The editor is still open"
-assert {p.name for p in REPORTS.glob("CoolerCurves-*")} == reports, "A new crash report was written"
+assert {p.name for p in REPORTS.glob("Cooler*")} == reports, "A new crash report was written"
 assert subprocess.run(["pgrep", "-x", "Problem Reporter"], capture_output=True).returncode != 0
 assert [digest(p) for p in WATCHED] == hashes, "The installed or saved curve changed"
 checks.append("Closed without applying; no crash report, dialog, or change to the installed or saved curve")

@@ -431,7 +431,7 @@ if __name__ == "__main__":
         elif args.editor_data:
             print(json.dumps(editor_data()))
         elif args.edit_curves:
-            subprocess.run(['/usr/bin/open','-a',str(USER_DATA/'Cooler Curves.app')],check=True)
+            subprocess.run(['/usr/bin/open','-b','com.chetangoel.cooler'],check=True)
         else:
             main()
     except (ValueError,OSError,KeyError,subprocess.SubprocessError) as error:
