@@ -358,7 +358,9 @@ def main():
         warning = 'Fan control not confirmed'
     cpu = temperatures['cpu']
     label = temperature(cpu) if temperature(cpu) != "Unavailable" else "?"
-    icon = 'exclamationmark.triangle' if warning else 'fanblades.fill' if active and selected == 'max' else 'fanblades'
+    # Solid glyphs match the menu bar; the icon itself tells the state at a glance.
+    icon = ('exclamationmark.triangle.fill' if warning else 'wind' if active and selected == 'max' else
+            'fan.badge.automatic.fill' if automatic and disabled is True else 'fan.fill')
     print(f'{label} | sfimage={icon} dropdown=false tooltip="CPU temperature"')
     print("---")
     action = read_json(ACTION_STATE/'action.json')

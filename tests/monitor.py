@@ -81,7 +81,7 @@ else: print('pid = 123')
     (source / "status.json").write_text(json.dumps(status))
     menu, html = run()
     rows = menu.splitlines()
-    assert rows[0].startswith("55° | sfimage=fanblades ") and active(menu)
+    assert rows[0].startswith("55° | sfimage=fan.fill ") and active(menu)
     assert "CPU\t55° | color=" in menu and "Fans\t2,010 · 2,110 RPM | color=" in menu
     assert "alternate=true" in next(row for row in rows if row.startswith("Targets\t2,198 · 2,244 RPM"))
     assert 'param2=quiet' in menu and 'param2=balanced' in menu and 'param2=cooler' in menu and 'param2=automatic' in menu
@@ -93,6 +93,13 @@ else: print('pid = 123')
     assert "<swiftbar.hideLastUpdated>true" in header and "<swiftbar.hideDisablePlugin>true" in header
     assert "hideSwiftBar" not in header
     checks.append("Editor and curves page stay reachable; SwiftBar keeps its own menu and single separator")
+    maximum = {"baselineRPM": 1800, "curve": [{"temperature": 10, "fraction": 1}, {"temperature": 90, "fraction": 1}],
+               "palmCurve": [{"temperature": 10, "fraction": 1}, {"temperature": 90, "fraction": 1}]}
+    (source / "config.json").write_text(json.dumps({**config, **maximum}))
+    menu, _ = run()
+    assert menu.startswith("55° | sfimage=wind ") and "checked=true" in next(r for r in menu.splitlines() if "param2=max" in r)
+    (source / "config.json").write_text(json.dumps(config))
+    checks.append("The menu-bar icon shows Max cooling while it is in control")
 
     status['pid']=122
     (source/'status.json').write_text(json.dumps(status))
@@ -111,7 +118,7 @@ else: print('pid = 123')
     status.update(mode="automatic", reason="Another fan controller is running", targets=[])
     (source / "status.json").write_text(json.dumps(status))
     menu, _ = run()
-    assert menu.startswith("55° | sfimage=exclamationmark.triangle ") and "Paused while another fan app is open" in menu
+    assert menu.startswith("55° | sfimage=exclamationmark.triangle.fill ") and "Paused while another fan app is open" in menu
     assert not active(menu) and "Targets\tNot set by Cooler" in menu
     checks.append("Yielding to another controller has no Cooler targets and flags the menu bar")
     values.update(F0Md=0, F1Md=0)
@@ -128,7 +135,7 @@ else: print('pid = 123')
     old_time=status['time']; status['time']='2000-01-01T00:00:00Z'
     (source/'status.json').write_text(json.dumps(status))
     menu,_=run()
-    assert menu.startswith('42° | sfimage=fanblades ') and 'GPU\t39° |' in menu
+    assert menu.startswith('42° | sfimage=fan.badge.automatic.fill ') and 'GPU\t39° |' in menu
     assert 'checked=true' in next(row for row in menu.splitlines() if 'param2=automatic' in row)
     assert 'exclamationmark.triangle' not in menu
     checks.append('Apple automatic keeps live temperatures after the daemon is stopped')
@@ -140,7 +147,7 @@ else: print('pid = 123')
     status.update(mode="custom", time="2000-01-01T00:00:00Z")
     (source / "status.json").write_text(json.dumps(status))
     menu, html = run()
-    assert menu.startswith("? | sfimage=exclamationmark.triangle ") and "No recent update from Cooler" in menu
+    assert menu.startswith("? | sfimage=exclamationmark.triangle.fill ") and "No recent update from Cooler" in menu
     assert not active(menu) and "55°" not in menu
     checks.append("Stale status never appears live")
 
@@ -162,7 +169,7 @@ else: print('pid = 123')
         else:
             (source / "status.json").write_text(content)
         menu, _ = run()
-        assert menu.startswith("? | sfimage=exclamationmark.triangle ") and "Cooler status unavailable" in menu
+        assert menu.startswith("? | sfimage=exclamationmark.triangle.fill ") and "Cooler status unavailable" in menu
     checks.append("Missing and corrupt status stay readable")
 
     status.update(time=dt.datetime.now(dt.timezone.utc).isoformat(), targets=[2198, 2244])

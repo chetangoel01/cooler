@@ -1,8 +1,9 @@
 {
-  "time": "2026-09-27T04:07:12.079658+00:00",
+  "time": "2026-09-27T04:37:34.065944+00:00",
   "checks": [
     "Legible live temperatures and fan speeds, targets under Option, and both curve graphs",
     "Editor and curves page stay reachable; SwiftBar keeps its own menu and single separator",
+    "The menu-bar icon shows Max cooling while it is in control",
     "Status from an old controller process cannot mark a new one healthy",
     "Curves use installed configuration",
     "Yielding to another controller has no Cooler targets and flags the menu bar",
@@ -16,5 +17,5 @@
     "The only hardware command is read-only probe",
     "Installed controller read successfully without administrator access"
   ],
-  "passed": 14
+  "passed": 15
 }
