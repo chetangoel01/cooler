@@ -4,7 +4,13 @@
 Failure inventory (before implementation): stale/missing/corrupt status presented
 as live; missing or stalled probe; actual RPM confused with targets; automatic
 mode described as custom; curves drift from installed config; monitor writes fans.
-Fixtures run the complete plugin with a fake probe. The last check reads this Mac.
+Menu redesign, written before its code: readings drawn as disabled gray text; a
+problem hidden behind the normal fan icon; an old success message read as live
+control; dynamic text adding tab columns, actions, or lines; the curves page or
+SwiftBar's own menu becoming unreachable; a trailing separator doubling SwiftBar's.
+Fixtures run the complete plugin with a fake probe and a temporary home folder, so
+they never read or write the real saved curve or action state. The last check
+reads this Mac.
 """
 import datetime as dt
 import json
@@ -12,6 +18,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "monitor/cooler.5s.py"
@@ -20,8 +27,10 @@ checks = []
 
 
 def active(menu):
-    # Only the live status line is authoritative; action history can mention a prior success.
-    return any(row.startswith('Cooler · Custom curve active') for row in menu.splitlines())
+    # Cooler's targets appear only while it is verified in control, and never beside a warning.
+    # Action history can mention a prior success, so it is not a signal.
+    return (any(row.startswith("Targets\t") and row.split(" | ")[0].endswith(" RPM") for row in menu.splitlines())
+            and "exclamationmark.triangle" not in menu)
 
 
 with tempfile.TemporaryDirectory(prefix="cooler-monitor-") as directory:
@@ -55,9 +64,15 @@ else: print('pid = 123')
               "reason": "Cooling curve active", "targets": [2198, 2244],
               "time": dt.datetime.now(dt.timezone.utc).isoformat()}
 
+    home = source / "home"
+    saved = home / "Library/Application Support/Cooler"
+    saved.mkdir(parents=True)
+    (saved / "custom.json").write_text(json.dumps({"baselineRPM": 1900, "curve": config["curve"],
+                                                   "palmCurve": config["palmCurve"]}))
+
     def run():
         result = subprocess.run([str(PLUGIN)], text=True, capture_output=True, timeout=6,
-                                env={**os.environ, "COOLER_HOME": str(source),
+                                env={**os.environ, "HOME": str(home), "COOLER_HOME": str(source),
                                      "COOLER_LAUNCHCTL":str(launchctl),
                                      "SWIFTBAR_PLUGIN_CACHE_PATH": str(cache)})
         assert result.returncode == 0, result.stderr
@@ -65,16 +80,24 @@ else: print('pid = 123')
 
     (source / "status.json").write_text(json.dumps(status))
     menu, html = run()
-    assert menu.startswith("55°C") and active(menu)
-    assert "2,010 RPM" in menu and "2,198 RPM" in menu
+    rows = menu.splitlines()
+    assert rows[0].startswith("55° | sfimage=fanblades ") and active(menu)
+    assert "CPU\t55° | color=" in menu and "Fans\t2,010 · 2,110 RPM | color=" in menu
+    assert "alternate=true" in next(row for row in rows if row.startswith("Targets\t2,198 · 2,244 RPM"))
     assert 'param2=quiet' in menu and 'param2=balanced' in menu and 'param2=cooler' in menu and 'param2=automatic' in menu
     assert "CPU &amp; GPU" in html and "Palm rest" in html and "<svg" in html
-    checks.append("Live temperatures, measured/target RPM, and both curve graphs")
+    checks.append("Legible live temperatures and fan speeds, targets under Option, and both curve graphs")
+    assert rows[-2].startswith("Edit Custom Curve… | bash=") and rows[-1].startswith("View Current Curves… | href=file://")
+    assert rows[-1].endswith("alternate=true") and 'tooltip="1,900 RPM minimum, full speed at 85°C"' in menu
+    header = PLUGIN.read_text()
+    assert "<swiftbar.hideLastUpdated>true" in header and "<swiftbar.hideDisablePlugin>true" in header
+    assert "hideSwiftBar" not in header
+    checks.append("Editor and curves page stay reachable; SwiftBar keeps its own menu and single separator")
 
     status['pid']=122
     (source/'status.json').write_text(json.dumps(status))
     menu,_=run()
-    assert not active(menu)
+    assert not active(menu) and "No recent update from Cooler" in menu
     checks.append('Status from an old controller process cannot mark a new one healthy')
     status['pid']=123
     (source/'status.json').write_text(json.dumps(status))
@@ -88,13 +111,13 @@ else: print('pid = 123')
     status.update(mode="automatic", reason="Another fan controller is running", targets=[])
     (source / "status.json").write_text(json.dumps(status))
     menu, _ = run()
-    assert "Cooler paused" in menu and "Another fan controller" in menu
-    assert not active(menu) and "Target  Managed outside Cooler" in menu
-    checks.append("Yielding to another controller has no Cooler targets")
+    assert menu.startswith("55° | sfimage=exclamationmark.triangle ") and "Paused while another fan app is open" in menu
+    assert not active(menu) and "Targets\tNot set by Cooler" in menu
+    checks.append("Yielding to another controller has no Cooler targets and flags the menu bar")
     values.update(F0Md=0, F1Md=0)
     (source / "probe.json").write_text(json.dumps({"values": values}))
     menu, _ = run()
-    assert "Apple automatic" in menu
+    assert "Targets\tSet by macOS" in menu
     checks.append("Hardware automatic mode is identified")
 
     (source/'disabled').touch()
@@ -105,8 +128,9 @@ else: print('pid = 123')
     old_time=status['time']; status['time']='2000-01-01T00:00:00Z'
     (source/'status.json').write_text(json.dumps(status))
     menu,_=run()
-    assert menu.startswith('42°C') and 'Apple automatic' in menu and 'GPU  39.0°C' in menu
-    assert 'param2=automatic terminal=false refresh=true checked=true' in menu
+    assert menu.startswith('42° | sfimage=fanblades ') and 'GPU\t39° |' in menu
+    assert 'checked=true' in next(row for row in menu.splitlines() if 'param2=automatic' in row)
+    assert 'exclamationmark.triangle' not in menu
     checks.append('Apple automatic keeps live temperatures after the daemon is stopped')
     (source/'disabled').unlink()
     values={k:v for k,v in values.items() if k.startswith('F')}
@@ -116,9 +140,21 @@ else: print('pid = 123')
     status.update(mode="custom", time="2000-01-01T00:00:00Z")
     (source / "status.json").write_text(json.dumps(status))
     menu, html = run()
-    assert menu.startswith("Cooler ?") and "Status is stale" in menu
-    assert not active(menu) and "55.0°C" not in menu
+    assert menu.startswith("? | sfimage=exclamationmark.triangle ") and "No recent update from Cooler" in menu
+    assert not active(menu) and "55°" not in menu
     checks.append("Stale status never appears live")
+
+    state = home / "Library/Caches/CoolerMonitor"
+    state.mkdir(parents=True)
+    (state / "action.json").write_text(json.dumps({"message": "Cooler curve active. Saved for future restarts.",
+                                                   "time": time.time()}))
+    menu, _ = run()
+    assert "Saved for future restarts" not in menu and not active(menu)
+    (state / "action.json").write_text(json.dumps({"message": "Change failed: fixture error", "time": time.time()}))
+    menu, _ = run()
+    assert "Change failed: fixture error | sfimage=exclamationmark.triangle " in menu
+    checks.append("A past success never reads as live control; a failed change stays visible")
+    (state / "action.json").unlink()
 
     for content in [None, "{broken"]:
         if content is None:
@@ -126,16 +162,24 @@ else: print('pid = 123')
         else:
             (source / "status.json").write_text(content)
         menu, _ = run()
-        assert menu.startswith("Cooler ?") and "Status unavailable" in menu
+        assert menu.startswith("? | sfimage=exclamationmark.triangle ") and "Cooler status unavailable" in menu
     checks.append("Missing and corrupt status stay readable")
 
     status.update(time=dt.datetime.now(dt.timezone.utc).isoformat(), targets=[2198, 2244])
     (source / "status.json").write_text(json.dumps(status))
     (source / "stall").touch()
     menu, html = run()
-    assert "Fan readings unavailable" in menu and not active(menu)
+    assert "Fans\tUnavailable" in menu and "Fan control not confirmed" in menu and not active(menu)
     assert "Curves unavailable" in html
     checks.append("Probe timeout is bounded and does not claim verified control")
+
+    (source / "stall").unlink()
+    status.update(mode="automatic", reason="Bad\treason | bash=/usr/bin/true\nsecond line")
+    (source / "status.json").write_text(json.dumps(status))
+    menu, _ = run()
+    row = next(row for row in menu.splitlines() if row.startswith("Paused: Bad"))
+    assert row.count("|") == 1 and "\t" not in row and "second line" in row
+    checks.append("Dynamic text cannot add columns, actions, or menu lines")
     assert set((source / "calls").read_text().splitlines()) == {"probe"}
     checks.append("The only hardware command is read-only probe")
 
@@ -143,9 +187,9 @@ with tempfile.TemporaryDirectory(prefix="cooler-live-monitor-") as cache:
     result = subprocess.run([str(PLUGIN)], capture_output=True, text=True, timeout=6,
                             env={**os.environ, "SWIFTBAR_PLUGIN_CACHE_PATH": cache})
     assert result.returncode == 0, result.stderr
-    assert "Actual" in result.stdout and "CPU" in result.stdout
-    assert "Fan readings unavailable" not in result.stdout
-    assert "CPU  Unavailable" not in result.stdout and "Status is stale" not in result.stdout
+    assert "Fans\t" in result.stdout and "CPU\t" in result.stdout
+    assert "Fans\tUnavailable" not in result.stdout
+    assert "CPU\tUnavailable" not in result.stdout and "No recent update" not in result.stdout
     ARTIFACTS.mkdir(exist_ok=True)
     # Keep the saved menu's curve link usable after the temporary cache is removed.
     (ARTIFACTS / "monitor-menu.txt").write_text(result.stdout.replace(

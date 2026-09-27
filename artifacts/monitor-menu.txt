@@ -1,24 +1,17 @@
-73°C | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"
+61° | sfimage=fanblades dropdown=false tooltip="CPU temperature"
 ---
-Cooler · Custom curve active · Custom
+CPU	61° | color=#1d1d1f,#ececec
+GPU	59° | color=#1d1d1f,#ececec
+Palm rest	33° | color=#1d1d1f,#ececec
+Fans	3,093 · 3,241 RPM | color=#1d1d1f,#ececec
+Targets	3,079 · 3,228 RPM | color=#1d1d1f,#ececec alternate=true
 ---
-Apple automatic | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=automatic terminal=false refresh=true checked=false
-Quiet | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=quiet terminal=false refresh=true checked=false
-Balanced | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=balanced terminal=false refresh=true checked=false
-Cooler | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=cooler terminal=false refresh=true checked=false
-Max cooling · until switched off | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=max terminal=false refresh=true checked=false
-Custom curve | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=custom terminal=false refresh=true checked=true
-Edit cooling curves… | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--edit-curves terminal=false refresh=true
-Last change: Custom curve active. Saved for future restarts. | size=12 length=100
+Apple Automatic | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=automatic terminal=false refresh=true checked=false tooltip="macOS controls the fans and Cooler stays off"
+Quiet | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=quiet terminal=false refresh=true checked=false tooltip="1,200 RPM minimum, full speed at 90°C"
+Balanced | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=balanced terminal=false refresh=true checked=false tooltip="1,500 RPM minimum, full speed at 90°C"
+Cooler | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=cooler terminal=false refresh=true checked=true tooltip="1,800 RPM minimum, full speed at 85°C"
+Max Cooling | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=max terminal=false refresh=true checked=false tooltip="Both fans at full speed until you switch modes"
+Custom Curve | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=custom terminal=false refresh=true checked=false tooltip="1,900 RPM minimum, full speed at 43°C"
 ---
-CPU  73.3°C
-GPU  67.4°C
-Palm rest  34.0°C
----
-Left fan · Actual  5,730 RPM
-Target  5,779 RPM | size=12
-Right fan · Actual  6,236 RPM
-Target  6,241 RPM | size=12
----
-View cooling curves… | href=file:///Users/chetangoel/CodexProjects/cooler/artifacts/monitor-curves.html
-Refresh now | refresh=true
+Edit Custom Curve… | bash=/opt/homebrew/bin/python3 param0="/Users/chetangoel/CodexProjects/cooler/monitor/cooler.5s.py" param1=--edit-curves terminal=false refresh=true
+View Current Curves… | href=file:///Users/chetangoel/CodexProjects/cooler/artifacts/monitor-curves.html alternate=true

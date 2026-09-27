@@ -1,11 +1,13 @@
 #!/opt/homebrew/bin/python3
 # <xbar.title>Cooler</xbar.title>
-# <xbar.version>1.2</xbar.version>
+# <xbar.version>1.3</xbar.version>
 # <xbar.desc>Temperatures, fan speeds, curves, and cooling profiles.</xbar.desc>
 # <swiftbar.refreshOnOpen>true</swiftbar.refreshOnOpen>
 # <swiftbar.runInBash>false</swiftbar.runInBash>
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
+# <swiftbar.hideLastUpdated>true</swiftbar.hideLastUpdated>
+# <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 
 import datetime as dt
 import argparse
@@ -28,6 +30,14 @@ CACHE = Path(os.environ.get("SWIFTBAR_PLUGIN_CACHE_PATH",
 ACTION_STATE = Path.home() / 'Library/Caches/CoolerMonitor'
 USER_DATA = Path.home() / 'Library/Application Support/Cooler'
 EDITABLE = {'baselineRPM', 'curve', 'palmCurve'}
+# SwiftBar grays out rows without an action; an explicit light/dark color keeps readings legible.
+INK = 'color=#1d1d1f,#ececec'
+MUTED = 'color=#6e6e73,#98989d'
+RESUMING = {'Waiting for three healthy samples', 'Resuming after a gap; collecting fresh samples'}
+NOTES = {'Waiting for administrator approval': 'Waiting for administrator approval…',
+         'Checking the new setting': 'Checking the new setting…',
+         'Change cancelled': 'Change cancelled',
+         'Setting saved': 'Saved; waiting for Cooler to confirm'}
 
 # Fractions use each fan's available range above the profile's baseline.
 PROFILES = {
@@ -217,16 +227,35 @@ def number(value):
 
 
 def temperature(value):
-    return f"{value:.1f}°C" if number(value) and 5 <= value <= 125 else "Unavailable"
+    return f"{value:.0f}°" if number(value) and 5 <= value <= 125 else "Unavailable"
 
 
 def rpm(value):
     return f"{value:,.0f} RPM" if number(value) and 0 <= value <= 10000 else "Unavailable"
 
 
+def pair(values):
+    # Left and right fans in one cell.
+    if not isinstance(values, list) or len(values) != 2 or not all(number(v) and 0 <= v <= 10000 for v in values):
+        return "Unavailable"
+    return " · ".join(f"{v:,.0f}" for v in values) + " RPM"
+
+
 def line(value):
-    # Dynamic status text cannot introduce SwiftBar actions or extra menu lines.
-    return str(value).replace("|", "/").replace("\n", " ").replace("\r", " ")
+    # Dynamic status text cannot introduce SwiftBar actions, extra menu lines, or tab columns.
+    return str(value).replace("|", "/").replace("\n", " ").replace("\r", " ").replace("\t", " ")
+
+
+def hint(name, saved):
+    if name == 'automatic': return 'macOS controls the fans and Cooler stays off'
+    if name == 'max': return 'Both fans at full speed until you switch modes'
+    try:
+        baseline, chip = ((saved['baselineRPM'], [(p['temperature'], p['fraction']) for p in saved['curve']])
+                          if name == 'custom' else PROFILES[name][:2])
+        full = next(t for t, f in chip if f >= 1)
+        return line(f"{baseline:,.0f} RPM minimum, full speed at {full:g}°C").replace('"', "'")
+    except (KeyError, TypeError, ValueError, StopIteration):
+        return 'Your saved curve'
 
 
 def graph(title, points, bounds):
@@ -311,54 +340,58 @@ def main():
         readings = [values.get(key) for key in keys]
         valid = readings and all(number(v) and 5 <= v <= 125 for v in readings)
         temperatures[group] = max(readings) if valid else status.get(group) if fresh else None
-    cpu = temperatures['cpu']
-    label = f"{cpu:.0f}°C" if temperature(cpu) != "Unavailable" else "Cooler ?"
-    print(f'{label} | sfimage=fanblades dropdown=false tooltip="Cooler · CPU temperature"')
-    print("---")
-    if automatic:
-        state = 'Apple automatic'
-    elif disabled is True and pid is None:
-        state = 'Cooler off; fan mode unverified'
-    elif not fresh:
-        state = "Status is stale" if status else "Status unavailable"
-    elif active:
-        state = 'Custom curve active · '+profile_name(config)
-    elif status.get("mode") == "custom":
-        state = "Custom curve requested; fan mode unverified"
-    else:
-        state = "Cooler paused"
-    print(f"Cooler · {state}")
-    if fresh and not active and status.get("reason"):
-        print(f"{line(status['reason'])} | size=12")
-    if not fresh and not (disabled is True and pid is None):
-        print("Waiting for a fresh controller update | size=12")
-    print('---')
     selected = 'automatic' if disabled is True else profile_name(config).lower() if pid else None
     if selected=='max cooling': selected='max'
-    descriptions = {'automatic':'Apple automatic','quiet':'Quiet','balanced':'Balanced','cooler':'Cooler',
-                    'max':'Max cooling · until switched off'}
-    if read_json(USER_DATA/'custom.json'): descriptions['custom']='Custom curve'
+    mode, reason = status.get('mode'), line(status.get('reason', ''))
+    resuming = fresh and mode == 'automatic' and reason in RESUMING
+    # A warning means the checked mode is not what the fans are doing right now.
+    if disabled is True and pid is None:
+        warning = None if automatic else 'Cooler is off; fan mode unconfirmed'
+    elif not fresh:
+        warning = 'No recent update from Cooler' if status else 'Cooler status unavailable'
+    elif active or resuming:
+        warning = None
+    elif mode == 'automatic':
+        warning = {'Another fan controller is running': 'Paused while another fan app is open',
+                   'macOS reports critical thermal pressure': 'Paused: macOS reports critical heat'}.get(reason, 'Paused: '+reason)
+    else:
+        warning = 'Fan control not confirmed'
+    cpu = temperatures['cpu']
+    label = temperature(cpu) if temperature(cpu) != "Unavailable" else "?"
+    icon = 'exclamationmark.triangle' if warning else 'fanblades.fill' if active and selected == 'max' else 'fanblades'
+    print(f'{label} | sfimage={icon} dropdown=false tooltip="CPU temperature"')
+    print("---")
+    action = read_json(ACTION_STATE/'action.json')
+    message = line(action.get('message', ''))
+    age = time.time()-action['time'] if number(action.get('time')) else math.inf
+    # The checkmark shows a successful change; only failures and changes in progress get a row.
+    note = next((text for prefix, text in NOTES.items() if message.startswith(prefix)), None)
+    if message.startswith('Change failed') and 0 <= age < 1800:
+        print(f"{message} | sfimage=exclamationmark.triangle {INK} length=48")
+    elif note and 0 <= age < 120:
+        print(f"{note} | {MUTED}")
+    if warning:
+        print(f"{warning} | sfimage=exclamationmark.triangle {INK} length=48")
+    elif resuming:
+        print(f"Resuming control… | {MUTED}")
+    for key, name in [("cpu", "CPU"), ("gpu", "GPU"), ("palm", "Palm rest")]:
+        print(f"{name}\t{temperature(temperatures[key])} | {INK}")
+    print(f"Fans\t{pair([values.get(f'F{i}Ac') for i in range(2)])} | {INK}")
+    # Holding Option swaps measured speeds for Cooler's targets, shown only while it is verified in control.
+    target = (pair(status.get('targets')) if active else 'Set by macOS' if automatic else
+              'Not set by Cooler' if fresh and mode == 'automatic' else 'Unavailable')
+    print(f"Targets\t{target} | {INK} alternate=true")
+    print('---')
+    saved = read_json(USER_DATA/'custom.json')
+    descriptions = {'automatic':'Apple Automatic','quiet':'Quiet','balanced':'Balanced','cooler':'Cooler',
+                    'max':'Max Cooling'}
+    if saved: descriptions['custom']='Custom Curve'
     script_path = json.dumps(str(Path(__file__).resolve()))
     for name,title in descriptions.items():
         checked = str(selected==name).lower()
-        print(f'{title} | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--apply-profile param2={name} terminal=false refresh=true checked={checked}')
-    print(f'Edit cooling curves… | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--edit-curves terminal=false refresh=true')
-    action = read_json(ACTION_STATE/'action.json')
-    if number(action.get('time')) and time.time()-action['time'] < 1800:
-        print(f"Last change: {line(action.get('message',''))} | size=12 length=100")
-    print("---")
-    for key, name in [("cpu", "CPU"), ("gpu", "GPU"), ("palm", "Palm rest")]:
-        print(f"{name}  {temperature(temperatures[key])}")
-    print("---")
-    targets = status.get("targets", [])
-    for i, side in enumerate(["Left", "Right"]):
-        print(f"{side} fan · Actual  {rpm(values.get(f'F{i}Ac'))}")
-        target = rpm(targets[i]) if active and isinstance(targets, list) and len(targets) == 2 else (
-            "Apple automatic" if automatic else "Managed outside Cooler" if fresh and status.get("mode") == "automatic" else "Unavailable")
-        print(f"Target  {target} | size=12")
-    if not fan_readings:
-        print("Fan readings unavailable | size=12")
-    print("---")
+        print(f'{title} | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--apply-profile param2={name} terminal=false refresh=true checked={checked} tooltip="{hint(name, saved)}"')
+    print('---')
+    print(f'Edit Custom Curve… | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--edit-curves terminal=false refresh=true')
     try:
         CACHE.mkdir(parents=True, exist_ok=True)
         page = CACHE / "curves.html"
@@ -367,10 +400,10 @@ def main():
             temporary = CACHE / "curves.tmp"
             temporary.write_text(html)
             temporary.replace(page)
-        print(f"View cooling curves… | href={page.as_uri()}")
+        # Holding Option offers the read-only curves page in place of the editor.
+        print(f"View Current Curves… | href={page.as_uri()} alternate=true")
     except OSError:
-        print("Curve view unavailable | size=12")
-    print("Refresh now | refresh=true")
+        pass
 
 
 if __name__ == "__main__":

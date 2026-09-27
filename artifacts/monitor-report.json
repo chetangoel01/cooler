@@ -1,17 +1,20 @@
 {
-  "time": "2026-09-26T23:40:41.516587+00:00",
+  "time": "2026-09-27T04:07:12.079658+00:00",
   "checks": [
-    "Live temperatures, measured/target RPM, and both curve graphs",
+    "Legible live temperatures and fan speeds, targets under Option, and both curve graphs",
+    "Editor and curves page stay reachable; SwiftBar keeps its own menu and single separator",
     "Status from an old controller process cannot mark a new one healthy",
     "Curves use installed configuration",
-    "Yielding to another controller has no Cooler targets",
+    "Yielding to another controller has no Cooler targets and flags the menu bar",
     "Hardware automatic mode is identified",
     "Apple automatic keeps live temperatures after the daemon is stopped",
     "Stale status never appears live",
+    "A past success never reads as live control; a failed change stays visible",
     "Missing and corrupt status stay readable",
     "Probe timeout is bounded and does not claim verified control",
+    "Dynamic text cannot add columns, actions, or menu lines",
     "The only hardware command is read-only probe",
     "Installed controller read successfully without administrator access"
   ],
-  "passed": 11
+  "passed": 14
 }
