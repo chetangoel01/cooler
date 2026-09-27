@@ -19,23 +19,25 @@ cask "cooler" do
 
   app "Cooler.app"
 
+  # Steps run with a temporary HOME, so user paths use the :home base, never "~".
   postflight_steps do
     # Installs or upgrades the root controller, keeping the selected profile.
     run "{{appdir}}/Cooler.app/Contents/Resources/install-daemon.sh", sudo: true
-    mkdir_p "~/Library/Application Support/SwiftBar/Plugins"
-    mkdir_p "~/Library/LaunchAgents"
+    mkdir_p "Library/Application Support/SwiftBar/Plugins", base: :home
+    mkdir_p "Library/LaunchAgents", base: :home
     copy "{{appdir}}/Cooler.app/Contents/Resources/cooler.5s.py",
-         "~/Library/Application Support/SwiftBar/Plugins/cooler.5s.py"
-    set_permissions "~/Library/Application Support/SwiftBar/Plugins/cooler.5s.py", "0755", recursive: false
+         "Library/Application Support/SwiftBar/Plugins/cooler.5s.py", target_base: :home
+    set_permissions "Library/Application Support/SwiftBar/Plugins/cooler.5s.py", "0755",
+                    base: :home, recursive: false
     copy "{{appdir}}/Cooler.app/Contents/Resources/com.chetangoel.cooler-monitor.plist",
-         "~/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist"
+         "Library/LaunchAgents/com.chetangoel.cooler-monitor.plist", target_base: :home
     # The editor lived here before it became Cooler.app.
-    remove "~/Library/Application Support/Cooler/Cooler Curves.app", recursive: true
+    remove "Library/Application Support/Cooler/Cooler Curves.app", base: :home, recursive: true
   end
 
   uninstall_postflight_steps do
-    remove ["~/Library/Application Support/SwiftBar/Plugins/cooler.5s.py",
-            "~/Library/LaunchAgents/com.chetangoel.cooler-monitor.plist"]
+    remove ["Library/Application Support/SwiftBar/Plugins/cooler.5s.py",
+            "Library/LaunchAgents/com.chetangoel.cooler-monitor.plist"], base: :home
   end
 
   # Homebrew also runs this before every upgrade; uninstall.sh keeps the profile.

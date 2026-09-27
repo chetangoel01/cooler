@@ -10,7 +10,9 @@ the fans in manual mode, or its plist behind; uninstall deletes the profile the
 next install should keep; an install proceeds while another fan controller runs;
 an install on another Mac model starts a controller that cannot work there.
 Found in the first Homebrew install: files copied out of the downloaded app keep
-its quarantine flag, and launchd refuses to load a quarantined daemon plist.
+its quarantine flag, and launchd refuses to load a quarantined daemon plist; and
+Homebrew runs install steps with a temporary HOME, so "~" paths in the cask never
+reach the real home folder.
 
 Runs packaging/install-daemon.sh and uninstall.sh with simulated launchd, sysctl,
 pgrep, install and SMC operations in a temporary root. No root, launchd, or fan
@@ -157,6 +159,11 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
         assert message in result.stderr and not plist.exists() and not state["loaded"], result
         assert (result.returncode == 0) == ("model" in change)
     checks.append("No controller is installed while another fan app runs or on another Mac model")
+
+cask = (ROOT / "packaging/cooler.rb").read_text()
+steps = cask[cask.index("postflight_steps do"):cask.index("\n  uninstall launchctl")]
+assert '"~' not in steps and "base: :home" in steps, "Cask steps run with a temporary HOME; use base: :home"
+checks.append("Cask install steps reach the real home folder through base: :home, never ~")
 
 report = {"checks": checks, "passed": len(checks), "hardware_writes": False}
 (ROOT / "artifacts/cask-report.json").write_text(json.dumps(report, indent=2) + "\n")
