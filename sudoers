@@ -1,0 +1,3 @@
+# Lets admin users switch Cooler profiles from the menu without a password.
+# Installed as /etc/sudoers.d/cooler; it allows only these two commands.
+%admin ALL = (root) NOPASSWD: /Library/Application\ Support/Cooler/apply-profile automatic, /Library/Application\ Support/Cooler/apply-profile curve

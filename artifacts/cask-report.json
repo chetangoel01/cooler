@@ -1,6 +1,7 @@
 {
   "checks": [
     "A first install writes the default profile, checks the fans once, and starts Cooler",
+    "The install adds the profile helper and its checked sudo rule",
     "Installed files drop the downloaded app's quarantine flag, so launchd loads the daemon",
     "Uninstall stops Cooler, restores automatic control, removes it, and keeps the profile",
     "An upgrade keeps the selected profile and skips the full-speed check",
@@ -8,6 +9,6 @@
     "No controller is installed while another fan app runs or on another Mac model",
     "Cask install steps reach the real home folder through base: :home, never ~"
   ],
-  "passed": 7,
+  "passed": 8,
   "hardware_writes": false
 }

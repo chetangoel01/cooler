@@ -101,7 +101,7 @@ final class EditorModel: ObservableObject {
     func apply() {
         guard let draft, draft.error == nil, !busy else { return }
         busy = true
-        message = "Waiting for authorization…"
+        message = "Applying…"
         DispatchQueue.global(qos: .userInitiated).async {
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("cooler-edit-\(UUID().uuidString).json")
             defer { try? FileManager.default.removeItem(at: file) }

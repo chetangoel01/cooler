@@ -28,7 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LIVE_BASE = "/Library/Application Support/Cooler"
 LIVE_PLIST = "/Library/LaunchDaemons/com.chetangoel.cooler.plist"
 TOOLS = {"launchctl": "/bin/launchctl", "pgrep": "/usr/bin/pgrep", "sysctl": "/usr/sbin/sysctl",
-         "id": "/usr/bin/id", "install": "/usr/bin/install"}
+         "id": "/usr/bin/id", "install": "/usr/bin/install", "visudo": "/usr/sbin/visudo"}
+LIVE_SUDOERS = "/etc/sudoers.d/cooler"
 BACKEND = r'''#!/opt/homebrew/bin/python3
 import json, pathlib, subprocess, sys
 p = pathlib.Path(WORK)  # also valid for the copy installed as the controller
@@ -46,6 +47,7 @@ elif command == "install":
         if args[i] in ("-o", "-g"): i += 2; continue
         kept.append(args[i]); i += 1
     code = subprocess.run(["/usr/bin/install", *kept]).returncode
+elif command == "visudo": code = subprocess.run(["/usr/sbin/visudo", *args]).returncode
 elif command == "launchctl":
     verb = args[0]
     if verb == "print-disabled":
@@ -70,6 +72,7 @@ checks = []
 with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     work = Path(directory)
     base, plist, resources = work / "installed", work / "com.chetangoel.cooler.plist", work / "Resources"
+    sudoers = work / "sudoers.d-cooler"
     resources.mkdir()
     backend = work / "backend.py"
     backend.write_text(BACKEND.replace("WORK", repr(str(work)), 1))
@@ -79,13 +82,13 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     helper = work / "Helpers/cooler"
     helper.parent.mkdir()
     helper.symlink_to(backend)
-    for name in ["config.json", "com.chetangoel.cooler.plist", "uninstall.sh"]:
+    for name in ["config.json", "com.chetangoel.cooler.plist", "uninstall.sh", "apply-profile.sh", "sudoers"]:
         (resources / name).write_bytes((ROOT / name).read_bytes())
     QUARANTINE = ["com.apple.quarantine", "0083;00000000;Homebrew Cask;"]
 
     def script(path):
         text = path.read_text().replace(shlex.quote(LIVE_BASE), shlex.quote(str(base)))
-        text = text.replace(LIVE_PLIST, shlex.quote(str(plist)))
+        text = text.replace(LIVE_PLIST, shlex.quote(str(plist))).replace(LIVE_SUDOERS, shlex.quote(str(sudoers)))
         for name, live in TOOLS.items():
             text = text.replace(live, shlex.quote(str(work / name)))
         copy = work / path.name
@@ -123,8 +126,11 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     assert (base / "config.json").read_bytes() == (ROOT / "config.json").read_bytes() and plist.exists()
     assert state["loaded"] and cooler_calls(events).count("hardware-check") == 1
     assert (base / "uninstall.sh").exists() and (base / "cooler").stat().st_mode & 0o777 == 0o755
+    assert (base / "apply-profile").stat().st_mode & 0o777 == 0o755
+    assert sudoers.read_bytes() == (ROOT / "sudoers").read_bytes() and sudoers.stat().st_mode & 0o777 == 0o440
     checks.append("A first install writes the default profile, checks the fans once, and starts Cooler")
-    flagged = [p.name for p in [plist, base / "cooler", base / "uninstall.sh", base / "config.json"]
+    checks.append("The install adds the profile helper and its checked sudo rule")
+    flagged = [p.name for p in [plist, base / "cooler", base / "uninstall.sh", base / "apply-profile", base / "config.json"]
                if subprocess.run(["/usr/bin/xattr", "-p", QUARANTINE[0], str(p)], capture_output=True).returncode == 0]
     assert not flagged, f"Installed files kept the download's quarantine flag: {flagged}"
     checks.append("Installed files drop the downloaded app's quarantine flag, so launchd loads the daemon")
@@ -136,6 +142,7 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     assert result.returncode == 0, result.stderr
     assert not state["loaded"] and cooler_calls(events) == ["auto"]
     assert not plist.exists() and not (base / "cooler").exists() and not (base / "uninstall.sh").exists()
+    assert not (base / "apply-profile").exists() and not sudoers.exists()
     assert json.loads((base / "config.json").read_text()) == maximum
     checks.append("Uninstall stops Cooler, restores automatic control, removes it, and keeps the profile")
 

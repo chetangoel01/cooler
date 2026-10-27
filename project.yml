@@ -28,6 +28,10 @@ targets:
         buildPhase: resources
       - path: uninstall.sh
         buildPhase: resources
+      - path: apply-profile.sh
+        buildPhase: resources
+      - path: sudoers
+        buildPhase: resources
       - path: packaging/install-daemon.sh
         buildPhase: resources
     dependencies:

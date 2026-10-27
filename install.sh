@@ -20,6 +20,9 @@ if [ -x "$base/cooler" ]; then ./build/cooler auto; fi
 /usr/bin/install -o root -g wheel -m 644 config.json "$base/config.json"
 /usr/bin/install -o root -g wheel -m 644 com.chetangoel.cooler.plist "$plist"
 /usr/bin/install -o root -g wheel -m 755 uninstall.sh "$base/uninstall.sh"
+/usr/bin/install -o root -g wheel -m 755 apply-profile.sh "$base/apply-profile"
+/usr/sbin/visudo -cqf sudoers
+/usr/bin/install -o root -g wheel -m 440 sudoers /etc/sudoers.d/cooler
 "$base/cooler" auto
 "$base/cooler" hardware-check > artifacts/hardware-check.json
 /bin/launchctl enable system/com.chetangoel.cooler

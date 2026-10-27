@@ -5,12 +5,13 @@
     "Quiet \u2264 Balanced \u2264 Cooler across CPU/GPU and palm ranges; full speed by 90\u00b0C chip or 40\u00b0C palm",
     "Apple automatic stops and disables Cooler while preserving the profile",
     "Validation/stop/start failures preserve configuration; failed startup leaves Apple automatic",
-    "Unknown actions are rejected before authorization",
-    "Cancelled authorization keeps the installed configuration unchanged",
-    "Cancelled custom edits report failure to the editor and keep the installed curve",
-    "Overlapping actions are serialized before authorization"
+    "Unknown actions are rejected by the plugin and by the passwordless helper",
+    "The helper takes only the three curve fields from the caller and rejects malformed values",
+    "A refused helper run reports failure and keeps the installed configuration unchanged",
+    "A refused custom edit reports failure to the editor and keeps the installed curve",
+    "Overlapping actions are serialized before the helper runs"
   ],
-  "passed": 9,
+  "passed": 10,
   "hardware_writes": false,
-  "native_authorization_tested": false
+  "sudo_rule_tested": false
 }

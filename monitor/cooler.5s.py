@@ -34,9 +34,8 @@ EDITABLE = {'baselineRPM', 'curve', 'palmCurve'}
 INK = 'color=#1d1d1f,#ececec'
 MUTED = 'color=#6e6e73,#98989d'
 RESUMING = {'Waiting for three healthy samples', 'Resuming after a gap; collecting fresh samples'}
-NOTES = {'Waiting for administrator approval': 'Waiting for administrator approval…',
+NOTES = {'Applying the new setting': 'Applying the new setting…',
          'Checking the new setting': 'Checking the new setting…',
-         'Change cancelled': 'Change cancelled',
          'Setting saved': 'Saved; waiting for Cooler to confirm'}
 
 # Fractions use each fan's available range above the profile's baseline.
@@ -106,57 +105,11 @@ def service_state():
 
 
 def action_script(name, config, edited=None):
-    """Fixed system operations; configuration is shell-quoted data, never code."""
+    """What the root helper receives: a mode and, for curves, the three editable fields."""
     proposal = (None if name=='automatic' else custom_config(edited,config) if name=='custom'
                 else profile_config(name,config))
-    script = '''set -eu
-umask 077
-base='/Library/Application Support/Cooler'
-job=system/com.chetangoel.cooler
-plist=/Library/LaunchDaemons/com.chetangoel.cooler.plist
-[ -x "$base/cooler" ] && [ -f "$plist" ] || { echo 'Cooler is not installed.' >&2; exit 1; }
-if /usr/bin/pgrep -x 'Macs Fan Control|Stats|TG Pro|smcFanControl|macfan' >/dev/null; then
-  echo 'Quit the other fan controller before switching.' >&2; exit 1
-else
-  result=$?
-  [ "$result" = 1 ] || { echo 'Cannot check for competing controllers.' >&2; exit 1; }
-fi
-stage=$(/usr/bin/mktemp -d "$base/.profile.XXXXXX")
-changing=0
-cleanup() {
-  result=$?
-  trap - EXIT
-  if [ "$result" != 0 ] && [ "$changing" = 1 ]; then
-    /bin/launchctl disable "$job" || true
-    if /bin/launchctl print "$job" >/dev/null 2>&1; then /bin/launchctl bootout "$job" || true; fi
-    "$base/cooler" auto || true
-    if [ -f "$stage/previous.json" ]; then /bin/mv -f "$stage/previous.json" "$base/config.json"; fi
-    echo 'Change failed. Previous profile restored; Apple automatic recovery was attempted. Check the menu status.' >&2
-  fi
-  /bin/rm -rf "$stage"
-  exit "$result"
-}
-trap cleanup EXIT
-'''
-    if proposal is not None:
-        payload = shlex.quote(json.dumps(proposal, separators=(',',':'),allow_nan=False))
-        script += f'''/usr/bin/printf '%s\\n' {payload} > "$stage/next.json"
-"$base/cooler" check "$stage/next.json" >/dev/null
-/bin/cp -p "$base/config.json" "$stage/previous.json"
-/usr/sbin/chown root:wheel "$stage/next.json"
-/bin/chmod 644 "$stage/next.json"
-'''
-    script += '''changing=1
-/bin/launchctl disable "$job"
-if /bin/launchctl print "$job" >/dev/null 2>&1; then /bin/launchctl bootout "$job"; fi
-"$base/cooler" auto
-'''
-    if proposal is not None:
-        script += '''/bin/mv -f "$stage/next.json" "$base/config.json"
-/bin/launchctl enable "$job"
-/bin/launchctl bootstrap system "$plist"
-'''
-    return {'config':proposal,'script':script}
+    return {'mode':'automatic' if proposal is None else 'curve','config':proposal,
+            'edit':None if proposal is None else {key:proposal[key] for key in sorted(EDITABLE)}}
 
 
 def save_action(message):
@@ -182,15 +135,16 @@ def apply_profile(name, edited=None):
             USER_DATA.mkdir(parents=True,exist_ok=True)
             saved=USER_DATA/'custom.tmp'
             saved.write_text(json.dumps(edited,allow_nan=False,indent=2)+'\n')
-        save_action('Waiting for administrator approval…')
-        program = 'on run argv\nreturn do shell script (item 1 of argv) with administrator privileges\nend run'
-        result = subprocess.run(['/usr/bin/osascript','-e',program,proposal['script']],capture_output=True,text=True)
+        save_action('Applying the new setting…')
+        # The sudoers rule installed with Cooler allows exactly this helper without a password.
+        result = subprocess.run(['/usr/bin/sudo','-n',str(INSTALLED/'apply-profile'),proposal['mode']],
+                                input=json.dumps(proposal['edit']) if proposal['edit'] else '',
+                                capture_output=True,text=True,timeout=60)
         if result.returncode:
             if saved: saved.unlink(missing_ok=True)
-            if '(-128)' in result.stderr:
-                message='Change cancelled. Previous selection kept.'
-            else:
-                message='Change failed: '+result.stderr.strip()
+            message='Change failed: '+(result.stderr.strip() or 'helper exited with status '+str(result.returncode))
+            if 'password is required' in result.stderr:
+                message='Change failed: the Cooler sudo rule is missing. Reinstall Cooler.'
             save_action(message)
             return {'ok':False,'message':message}
         if saved: saved.replace(USER_DATA/'custom.json')

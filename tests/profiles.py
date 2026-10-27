@@ -3,11 +3,12 @@
 
 Failure inventory, before implementation: unauthorized refresh changes fans;
 unknown action reaches authorization; invalid profile replaces working settings;
-overlapping changes; cancellation is shown as success; failed stop leaves two
-controllers; failed startup leaves a manual target; old status marks a new process
+overlapping changes; a missing sudo rule is shown as success; the passwordless
+helper lets a caller replace sensors, model or recovery settings, or run another
+mode; failed stop leaves two controllers; failed startup leaves a manual target; old status marks a new process
 healthy; automatic mode loses live readings; selected preset disagrees with disk.
 
-Runs the plugin's exported action scripts with simulated launchd/SMC operations.
+Runs apply-profile.sh with the plugin's proposals and simulated launchd/SMC operations.
 Config validation and profile response use the real compiled Cooler CLI read-only.
 No administrator prompt, launchd mutation, or hardware fan write is performed.
 """
@@ -75,19 +76,25 @@ sys.exit(code)
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
 
-    def execute(name, failure=None):
+    helper = work/'apply-profile'
+    script = (ROOT/'apply-profile.sh').read_text().replace(shlex.quote(LIVE_BASE), shlex.quote(str(base)))
+    for tool, path in [('launchctl','/bin/launchctl'),('pgrep','/usr/bin/pgrep'),('chown','/usr/sbin/chown')]:
+        script = script.replace(path, shlex.quote(str(work/tool)))
+    helper.write_text(script)
+
+    def run_helper(mode, edit, failure=None):
         (base/'config.json').write_text(original)
         (work/'state.json').write_text(json.dumps({'loaded':True,'enabled':True,'automatic':False}))
         (work/'events.jsonl').write_text('')
         (work/'fail').write_text(failure or '')
-        proposal = preview(name)
-        script = proposal['script'].replace(shlex.quote(LIVE_BASE), shlex.quote(str(base)))
-        for tool, path in [('launchctl','/bin/launchctl'),('pgrep','/usr/bin/pgrep'),('chown','/usr/sbin/chown')]:
-            script = script.replace(path, shlex.quote(str(work/tool)))
-        subprocess.run(['/bin/sh','-n'], input=script, text=True, check=True)
-        result = subprocess.run(['/bin/sh'], input=script, text=True, capture_output=True,
+        result = subprocess.run(['/bin/sh',str(helper),mode], input=json.dumps(edit) if edit else '',
+                                text=True, capture_output=True,
                                 env={**os.environ,'COOLER_REAL_CLI':str(ROOT/'build/cooler')},timeout=15)
-        return result, json.loads((work/'state.json').read_text()), proposal
+        return result, json.loads((work/'state.json').read_text())
+
+    def execute(name, failure=None):
+        proposal = preview(name)
+        return (*run_helper(proposal['mode'], proposal['edit'], failure), proposal)
 
     configs = {}
     for name in ['quiet','balanced','cooler']:
@@ -140,39 +147,50 @@ sys.exit(code)
 
     result=subprocess.run([str(PLUGIN),'--preview-profile','unexpected'],capture_output=True,text=True)
     assert result.returncode != 0
-    checks.append('Unknown actions are rejected before authorization')
+    result,state=run_helper('install',None)
+    assert result.returncode==2 and state['loaded'] and (base/'config.json').read_text()==original
+    checks.append('Unknown actions are rejected by the plugin and by the passwordless helper')
 
-    # Exercise the complete action process with only the OS authorization endpoint substituted.
-    auth=work/'authorize'
-    auth.write_text('#!/bin/sh\necho "execution error: User canceled. (-128)" >&2\nexit 1\n')
-    auth.chmod(0o755)
+    hostile={**edited,'cpuKeys':['Tz00'],'model':'Other','fallRPMPerSecond':100}
+    result,state=run_helper('curve',hostile)
+    assert result.returncode==0, result.stderr
+    installed=json.loads((base/'config.json').read_text())
+    assert installed=={**json.loads(original),**edited}, installed
+    result,state=run_helper('curve',{**edited,'baselineRPM':'1900; rm -rf /'})
+    assert result.returncode!=0 and (base/'config.json').read_text()==original and state['loaded']
+    checks.append('The helper takes only the three curve fields from the caller and rejects malformed values')
+
+    # Exercise the complete action process with only sudo substituted: it refuses as it does without the rule.
+    sudo=work/'sudo'
+    sudo.write_text('#!/bin/sh\necho "sudo: a password is required" >&2\nexit 1\n')
+    sudo.chmod(0o755)
     actions=work/'actions'
     user_data=work/'user-data'; user_data.mkdir()
     saved_custom=json.dumps(edited)
     (user_data/'custom.json').write_text(saved_custom)
     copy=work/'plugin.py'
-    code=PLUGIN.read_text().replace("'/usr/bin/osascript'",repr(str(auth))).replace(
+    code=PLUGIN.read_text().replace("'/usr/bin/sudo'",repr(str(sudo))).replace(
         "ACTION_STATE = Path.home() / 'Library/Caches/CoolerMonitor'",f'ACTION_STATE = Path({str(actions)!r})').replace(
         "USER_DATA = Path.home() / 'Library/Application Support/Cooler'",f'USER_DATA = Path({str(user_data)!r})')
     copy.write_text(code); copy.chmod(0o755)
     before=Path(LIVE_BASE+'/config.json').read_bytes()
     result=subprocess.run([str(copy),'--apply-profile','balanced'],capture_output=True,text=True,timeout=5)
     assert result.returncode==0, result.stderr
-    assert 'cancelled' in json.loads((actions/'action.json').read_text())['message']
+    assert 'sudo rule is missing' in json.loads((actions/'action.json').read_text())['message']
     assert Path(LIVE_BASE+'/config.json').read_bytes()==before
-    checks.append('Cancelled authorization keeps the installed configuration unchanged')
+    checks.append('A refused helper run reports failure and keeps the installed configuration unchanged')
     result=subprocess.run([str(copy),'--apply-custom',str(work/'custom.json')],capture_output=True,text=True,timeout=5)
     assert not json.loads(result.stdout)['ok'] and Path(LIVE_BASE+'/config.json').read_bytes()==before
     assert (user_data/'custom.json').read_text()==saved_custom
-    checks.append('Cancelled custom edits report failure to the editor and keep the installed curve')
+    checks.append('A refused custom edit reports failure to the editor and keeps the installed curve')
     (actions/'action.json').write_text(json.dumps({'message':'Original action in progress'}))
     with (actions/'action.lock').open('w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         result=subprocess.run([str(copy),'--apply-profile','quiet'],capture_output=True,text=True,timeout=5)
         assert result.returncode==0
         assert json.loads((actions/'action.json').read_text())['message']=='Original action in progress'
-    checks.append('Overlapping actions are serialized before authorization')
+    checks.append('Overlapping actions are serialized before the helper runs')
 
-report={'checks':checks,'passed':len(checks),'hardware_writes':False,'native_authorization_tested':False}
+report={'checks':checks,'passed':len(checks),'hardware_writes':False,'sudo_rule_tested':False}
 (ROOT/'artifacts/profiles-report.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

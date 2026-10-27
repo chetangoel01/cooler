@@ -11,5 +11,6 @@ base='/Library/Application Support/Cooler'
 job=system/com.chetangoel.cooler
 if /bin/launchctl print "$job" >/dev/null 2>&1; then /bin/launchctl bootout "$job"; fi
 if [ -x "$base/cooler" ]; then "$base/cooler" auto; fi
-/bin/rm -f /Library/LaunchDaemons/com.chetangoel.cooler.plist "$base/cooler" "$base/status.json" "$base/uninstall.sh"
+/bin/rm -f /Library/LaunchDaemons/com.chetangoel.cooler.plist /etc/sudoers.d/cooler \
+  "$base/cooler" "$base/apply-profile" "$base/status.json" "$base/uninstall.sh"
 echo 'Cooler removed; fans restored to Apple automatic control. Your profile is kept for a reinstall.'
