@@ -1,5 +1,5 @@
 {
-  "time": "2026-11-07T09:12:20.864675+00:00",
+  "time": "2026-11-07T13:57:02.257555+00:00",
   "checks": [
     "Legible live temperatures and fan speeds, targets under Option, and both curve graphs",
     "Curves up to the 9,072 RPM fan maximum stay inside the graph",
@@ -16,8 +16,9 @@
     "Missing and corrupt status stay readable",
     "Probe timeout is bounded and does not claim verified control",
     "Dynamic text cannot add columns, actions, or menu lines",
+    "A one-fan desktop shows one fan, no palm rest, and opens the editor with its own fan limits",
     "The only hardware command is read-only probe",
     "Installed controller read successfully without administrator access"
   ],
-  "passed": 17
+  "passed": 18
 }

@@ -1,16 +1,16 @@
-61° | sfimage=fan.fill dropdown=false tooltip="CPU temperature"
+82° | sfimage=fan.fill dropdown=false tooltip="CPU temperature"
 ---
-CPU	61° | color=#1d1d1f,#ececec
-GPU	57° | color=#1d1d1f,#ececec
-Palm rest	30° | color=#1d1d1f,#ececec
-Fans	3,813 · 4,041 RPM | color=#1d1d1f,#ececec
-Targets	3,797 · 3,996 RPM | color=#1d1d1f,#ececec alternate=true
+CPU	82° | color=#1d1d1f,#ececec
+GPU	60° | color=#1d1d1f,#ececec
+Palm rest	29° | color=#1d1d1f,#ececec
+Fans	8,160 · 8,710 RPM | color=#1d1d1f,#ececec
+Targets	8,400 · 9,072 RPM | color=#1d1d1f,#ececec alternate=true
 ---
 Apple Automatic | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=automatic terminal=false refresh=true checked=false tooltip="macOS controls the fans and Cooler stays off"
 Quiet | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=quiet terminal=false refresh=true checked=false tooltip="2,000 RPM minimum, full speed at 90°C"
 Balanced | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=balanced terminal=false refresh=true checked=false tooltip="2,000 RPM minimum, full speed at 90°C"
 Cooler | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=cooler terminal=false refresh=true checked=true tooltip="2,000 RPM minimum, full speed at 85°C"
-Max Cooling | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=max terminal=false refresh=true checked=false tooltip="Both fans at full speed until you switch modes"
+Max Cooling | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=max terminal=false refresh=true checked=false tooltip="Full fan speed until you switch modes"
 Custom Curve | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=custom terminal=false refresh=true checked=false tooltip="2,000 RPM minimum, full speed at 75°C"
 ---
 Edit Custom Curve… | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--edit-curves terminal=false refresh=true
