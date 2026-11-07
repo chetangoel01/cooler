@@ -1,5 +1,5 @@
 {
-  "time": "2026-11-07T09:00:06.858891+00:00",
+  "time": "2026-11-07T09:44:54.167635+00:00",
   "checks": [
     {
       "name": "gentle baseline on both fans",
@@ -54,11 +54,67 @@
       "passed": true
     },
     {
-      "name": "missing palm sensor restores automatic control",
+      "name": "a Mac without palm sensors cools on CPU and GPU alone",
+      "passed": true
+    },
+    {
+      "name": "a one-fan Mac gets one target",
+      "passed": true
+    },
+    {
+      "name": "a failed write on a one-fan Mac restores that fan",
+      "passed": true
+    },
+    {
+      "name": "a profile from an older version, naming a model and sensors, still loads",
       "passed": true
     },
     {
       "name": "three healthy samples resume cooling after sensor recovery",
+      "passed": true
+    },
+    {
+      "name": "the saved M1 Max probe maps to the sensors verified on that Mac, two fans and F0Md",
+      "passed": true
+    },
+    {
+      "name": "the saved M5 Pro probe maps to the measured sensors, two fans and F0md",
+      "passed": true
+    },
+    {
+      "name": "the saved M6 Mac mini probe maps to its load-tested sensors, one fan, no palm rest and F0md",
+      "passed": true
+    },
+    {
+      "name": "a listed key missing on this variant is skipped, not required",
+      "passed": true
+    },
+    {
+      "name": "a Mac without palm sensors maps with none",
+      "passed": true
+    },
+    {
+      "name": "Apple M7 Pro is refused",
+      "passed": true
+    },
+    {
+      "name": "Apple M10 is refused",
+      "passed": true
+    },
+    {
+      "name": "Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz is refused",
+      "passed": true
+    },
+    {
+      "name": "Apple A18 Pro is refused",
+      "passed": true
+    },
+    {
+      "name": "a Mac without fans is refused",
+      "passed": true
+    },
+    {
+      "name": "a Mac whose generation lists none of its keys is refused",
       "passed": true
     }
   ],

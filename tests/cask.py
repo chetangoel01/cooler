@@ -8,13 +8,14 @@ starts without a configuration; the full-speed hardware check runs on every
 upgrade instead of only the first install; uninstall leaves the daemon loaded,
 the fans in manual mode, or its plist behind; uninstall deletes the profile the
 next install should keep; an install proceeds while another fan controller runs;
-an install on another Mac model starts a controller that cannot work there.
+an install on a Mac Cooler cannot control (a chip without a sensor map, a Mac
+without fans) starts a controller that cannot work there.
 Found in the first Homebrew install: files copied out of the downloaded app keep
 its quarantine flag, and launchd refuses to load a quarantined daemon plist; and
 Homebrew runs install steps with a temporary HOME, so "~" paths in the cask never
 reach the real home folder.
 
-Runs packaging/install-daemon.sh and uninstall.sh with simulated launchd, sysctl,
+Runs packaging/install-daemon.sh and uninstall.sh with simulated launchd,
 pgrep, install and SMC operations in a temporary root. No root, launchd, or fan
 access.
 """
@@ -27,7 +28,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 LIVE_BASE = "/Library/Application Support/Cooler"
 LIVE_PLIST = "/Library/LaunchDaemons/com.chetangoel.cooler.plist"
-TOOLS = {"launchctl": "/bin/launchctl", "pgrep": "/usr/bin/pgrep", "sysctl": "/usr/sbin/sysctl",
+TOOLS = {"launchctl": "/bin/launchctl", "pgrep": "/usr/bin/pgrep",
          "id": "/usr/bin/id", "install": "/usr/bin/install", "visudo": "/usr/sbin/visudo"}
 LIVE_SUDOERS = "/etc/sudoers.d/cooler"
 BACKEND = r'''#!/opt/homebrew/bin/python3
@@ -38,7 +39,6 @@ command, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
 with (p / "events.jsonl").open("a") as f: f.write(json.dumps([command, args]) + "\n")
 code = 0
 if command == "id": print(0)
-elif command == "sysctl": print(state["model"])
 elif command == "pgrep": code = 0 if state["competitor"] else 1
 elif command == "install":
     # The real install, minus root ownership, so extended attributes carry over as they do on a Mac.
@@ -64,6 +64,8 @@ elif command == "launchctl":
         else: state["loaded"] = True
 elif command == "cooler":
     if args[0] == "auto" and state["loaded"]: code = 43
+    if args[0] == "check" and not state["supported"]:
+        print("Cooler has no sensor map for Apple M7", file=sys.stderr); code = 1
 (p / "state.json").write_text(json.dumps(state))
 sys.exit(code)
 '''
@@ -106,7 +108,7 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
         subprocess.run(["/usr/bin/xattr", "-w", *QUARANTINE, str(path)], check=True)
 
     def run(target, **state):
-        current = {"model": "Mac17,13", "competitor": False, "loaded": False, "disabled": False}
+        current = {"supported": True, "competitor": False, "loaded": False, "disabled": False}
         path = work / "state.json"
         if path.exists():
             current.update(json.loads(path.read_text()))
@@ -160,12 +162,13 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     assert json.loads((base / "config.json").read_text()) == maximum and plist.exists()
     checks.append("An upgrade after Apple Automatic installs Cooler but leaves it off")
 
-    for change, message in [({"competitor": True}, "other fan controllers"), ({"model": "MacBookPro18,4"}, "Mac17,13")]:
-        run(uninstaller, disabled=False, competitor=False, model="Mac17,13")
+    for change, message in [({"competitor": True}, "other fan controllers"),
+                            ({"supported": False}, "no sensor map for Apple M7")]:
+        run(uninstaller, disabled=False, competitor=False, supported=True)
         result, state, events = run(installer, **change)
         assert message in result.stderr and not plist.exists() and not state["loaded"], result
-        assert (result.returncode == 0) == ("model" in change)
-    checks.append("No controller is installed while another fan app runs or on another Mac model")
+        assert (result.returncode == 0) == ("supported" in change)
+    checks.append("No controller is installed while another fan app runs or on a Mac Cooler cannot control")
 
 cask = (ROOT / "packaging/cooler.rb").read_text()
 steps = cask[cask.index("postflight_steps do"):cask.index("\n  uninstall launchctl")]

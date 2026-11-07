@@ -2,7 +2,6 @@
 set -eu
 cd "$(dirname "$0")"
 [ "$(id -u)" = 0 ] || { echo 'Run this installer with administrator privileges.' >&2; exit 1; }
-[ "$(sysctl -n hw.model)" = Mac17,13 ] || { echo 'Unsupported Mac model.' >&2; exit 1; }
 if /usr/bin/pgrep -x 'Macs Fan Control|Stats|TG Pro|smcFanControl|macfan' >/dev/null; then
   echo 'Quit other fan controllers before installing Cooler.' >&2
   exit 1

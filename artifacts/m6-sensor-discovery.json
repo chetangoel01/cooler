@@ -1,0 +1,406 @@
+{
+  "date": "2026-11-07",
+  "model": "Mac18,5",
+  "chip": "Apple M6, 2 Super + 4 Performance + 6 Efficiency CPU cores, 12-core GPU (Mac mini)",
+  "macOS": "27.0.1 (26A434)",
+  "method": [
+    "Ran `cooler probe` (read-only: key by index, key info, read; no writes): 147 readable T and F keys, saved in m6-probe.json.",
+    "Sampled every 4-byte float T key once per second for 235 s (m6-load-run.csv): 30 s idle, 60 s of 12 busy processes (one per core), 45 s cooling, 60 s of a Metal compute load, 40 s cooling.",
+    "Rise = mean of the last 10 s of each load minus the 10 s before it. Apple kept the fan at its 1,000 RPM minimum throughout, so heat spread across the whole chip under either load."
+  ],
+  "selected": {
+    "cpuKeys": {
+      "why": "Every Tp0 key (21) rose 12-19 C under CPU load, above the 11.9 C the whole chip warmed (every Tg key rose exactly that much while the GPU was idle). On the M5 Pro the per-core keys are likewise the Tp0 ones. The GPU load also warmed them 15-20 C, so the CPU/GPU split is approximate; both groups drive the same curve, so it changes only the menu readout.",
+      "sensors": [
+        {
+          "key": "Tp05",
+          "cpuIdle": 36.4,
+          "cpuLoad": 52.2,
+          "cpuRise": 15.8,
+          "gpuIdle": 41.8,
+          "gpuLoad": 57.2,
+          "gpuRise": 15.4
+        },
+        {
+          "key": "Tp07",
+          "cpuIdle": 36.7,
+          "cpuLoad": 54.1,
+          "cpuRise": 17.4,
+          "gpuIdle": 42.7,
+          "gpuLoad": 57.7,
+          "gpuRise": 15.0
+        },
+        {
+          "key": "Tp09",
+          "cpuIdle": 35.2,
+          "cpuLoad": 53.3,
+          "cpuRise": 18.1,
+          "gpuIdle": 41.8,
+          "gpuLoad": 56.7,
+          "gpuRise": 14.9
+        },
+        {
+          "key": "Tp0A",
+          "cpuIdle": 35.3,
+          "cpuLoad": 49.5,
+          "cpuRise": 14.2,
+          "gpuIdle": 40.9,
+          "gpuLoad": 58.9,
+          "gpuRise": 18.0
+        },
+        {
+          "key": "Tp0E",
+          "cpuIdle": 35.8,
+          "cpuLoad": 51.6,
+          "cpuRise": 15.8,
+          "gpuIdle": 41.3,
+          "gpuLoad": 59.4,
+          "gpuRise": 18.1
+        },
+        {
+          "key": "Tp0G",
+          "cpuIdle": 35.8,
+          "cpuLoad": 50.7,
+          "cpuRise": 14.9,
+          "gpuIdle": 41.2,
+          "gpuLoad": 59.5,
+          "gpuRise": 18.3
+        },
+        {
+          "key": "Tp0I",
+          "cpuIdle": 36.3,
+          "cpuLoad": 53.0,
+          "cpuRise": 16.7,
+          "gpuIdle": 41.5,
+          "gpuLoad": 59.3,
+          "gpuRise": 17.8
+        },
+        {
+          "key": "Tp0L",
+          "cpuIdle": 35.4,
+          "cpuLoad": 52.5,
+          "cpuRise": 17.1,
+          "gpuIdle": 40.7,
+          "gpuLoad": 58.9,
+          "gpuRise": 18.2
+        },
+        {
+          "key": "Tp0b",
+          "cpuIdle": 36.0,
+          "cpuLoad": 52.6,
+          "cpuRise": 16.6,
+          "gpuIdle": 41.6,
+          "gpuLoad": 57.0,
+          "gpuRise": 15.4
+        },
+        {
+          "key": "Tp0d",
+          "cpuIdle": 36.2,
+          "cpuLoad": 52.7,
+          "cpuRise": 16.5,
+          "gpuIdle": 41.6,
+          "gpuLoad": 57.3,
+          "gpuRise": 15.7
+        },
+        {
+          "key": "Tp0g",
+          "cpuIdle": 36.4,
+          "cpuLoad": 55.0,
+          "cpuRise": 18.6,
+          "gpuIdle": 42.5,
+          "gpuLoad": 57.6,
+          "gpuRise": 15.1
+        },
+        {
+          "key": "Tp0j",
+          "cpuIdle": 35.9,
+          "cpuLoad": 54.7,
+          "cpuRise": 18.8,
+          "gpuIdle": 42.4,
+          "gpuLoad": 57.0,
+          "gpuRise": 14.6
+        },
+        {
+          "key": "Tp0m",
+          "cpuIdle": 35.0,
+          "cpuLoad": 53.1,
+          "cpuRise": 18.1,
+          "gpuIdle": 40.8,
+          "gpuLoad": 56.6,
+          "gpuRise": 15.8
+        },
+        {
+          "key": "Tp0o",
+          "cpuIdle": 35.2,
+          "cpuLoad": 48.4,
+          "cpuRise": 13.2,
+          "gpuIdle": 40.7,
+          "gpuLoad": 58.9,
+          "gpuRise": 18.2
+        },
+        {
+          "key": "Tp0r",
+          "cpuIdle": 35.8,
+          "cpuLoad": 48.2,
+          "cpuRise": 12.4,
+          "gpuIdle": 41.3,
+          "gpuLoad": 60.7,
+          "gpuRise": 19.4
+        },
+        {
+          "key": "Tp0t",
+          "cpuIdle": 36.1,
+          "cpuLoad": 49.0,
+          "cpuRise": 12.9,
+          "gpuIdle": 41.8,
+          "gpuLoad": 60.1,
+          "gpuRise": 18.3
+        },
+        {
+          "key": "Tp0u",
+          "cpuIdle": 35.9,
+          "cpuLoad": 48.0,
+          "cpuRise": 12.1,
+          "gpuIdle": 41.2,
+          "gpuLoad": 60.0,
+          "gpuRise": 18.8
+        },
+        {
+          "key": "Tp0w",
+          "cpuIdle": 35.6,
+          "cpuLoad": 47.9,
+          "cpuRise": 12.3,
+          "gpuIdle": 41.2,
+          "gpuLoad": 60.9,
+          "gpuRise": 19.7
+        },
+        {
+          "key": "Tp0x",
+          "cpuIdle": 35.7,
+          "cpuLoad": 48.6,
+          "cpuRise": 12.9,
+          "gpuIdle": 41.4,
+          "gpuLoad": 61.5,
+          "gpuRise": 20.1
+        },
+        {
+          "key": "Tp0y",
+          "cpuIdle": 35.5,
+          "cpuLoad": 48.8,
+          "cpuRise": 13.3,
+          "gpuIdle": 41.1,
+          "gpuLoad": 60.1,
+          "gpuRise": 19.0
+        },
+        {
+          "key": "Tp0z",
+          "cpuIdle": 35.8,
+          "cpuLoad": 49.2,
+          "cpuRise": 13.4,
+          "gpuIdle": 41.1,
+          "gpuLoad": 59.3,
+          "gpuRise": 18.2
+        }
+      ]
+    },
+    "gpuKeys": {
+      "why": "Every Tg key (18) rose 24-29 C under GPU load against 11.9 C under CPU load, as on the M5 Pro.",
+      "sensors": [
+        {
+          "key": "Tg01",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 66.2,
+          "gpuRise": 25.6
+        },
+        {
+          "key": "Tg07",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 66.9,
+          "gpuRise": 26.3
+        },
+        {
+          "key": "Tg08",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 64.2,
+          "gpuRise": 23.6
+        },
+        {
+          "key": "Tg09",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 67.6,
+          "gpuRise": 27.0
+        },
+        {
+          "key": "Tg0a",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 67.1,
+          "gpuRise": 26.5
+        },
+        {
+          "key": "Tg0b",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.1,
+          "gpuRise": 27.5
+        },
+        {
+          "key": "Tg0c",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.3,
+          "gpuRise": 27.7
+        },
+        {
+          "key": "Tg0d",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.0,
+          "gpuRise": 27.4
+        },
+        {
+          "key": "Tg10",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 65.5,
+          "gpuRise": 24.9
+        },
+        {
+          "key": "Tg17",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.2,
+          "gpuRise": 27.6
+        },
+        {
+          "key": "Tg1a",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 65.5,
+          "gpuRise": 24.9
+        },
+        {
+          "key": "Tg1b",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.2,
+          "gpuRise": 27.6
+        },
+        {
+          "key": "Tg1c",
+          "cpuIdle": 35.1,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.9,
+          "gpuIdle": 40.6,
+          "gpuLoad": 67.4,
+          "gpuRise": 26.8
+        },
+        {
+          "key": "Tg1d",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 69.0,
+          "gpuRise": 28.4
+        },
+        {
+          "key": "Tg1e",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.2,
+          "gpuRise": 27.6
+        },
+        {
+          "key": "Tg1f",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 68.4,
+          "gpuRise": 27.8
+        },
+        {
+          "key": "Tg1g",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 69.8,
+          "gpuRise": 29.2
+        },
+        {
+          "key": "Tg1h",
+          "cpuIdle": 35.2,
+          "cpuLoad": 47.0,
+          "cpuRise": 11.8,
+          "gpuIdle": 40.6,
+          "gpuLoad": 69.9,
+          "gpuRise": 29.3
+        }
+      ]
+    }
+  },
+  "notSelected": {
+    "Te07 Te08 Te09 Te0c Te0e Te0f Te0g Te0h Te0i": "Rose 12-13 C under CPU load and 15-16 C under GPU load: no more than the whole chip warmed. Named like the M3/M4 efficiency-core keys, but the efficiency cores add little heat.",
+    "TfC1 TfCD": "Rose most under GPU load (26-33 C) but are not in Stats for any generation; the Tg keys already cover the GPU.",
+    "Ts00-Ts08": "No Ts0P/Ts1P palm-rest keys: this is a desktop, so Cooler uses no palm curve here."
+  },
+  "fans": {
+    "count": 1,
+    "modeKeys": [
+      "F0md"
+    ],
+    "note": "Lowercase md, as on the M5 Pro. Read-only: Cooler has not written to this Mac.",
+    "minimumRPM": [
+      1000
+    ],
+    "maximumRPM": [
+      4900
+    ],
+    "targetKeys": [
+      "F0Tg"
+    ],
+    "automaticMode": 0
+  },
+  "peaks": {
+    "cpuLoad": {
+      "hottestCpu": 55.0,
+      "hottestGpu": 47.0
+    },
+    "gpuLoad": {
+      "hottestCpu": 61.5,
+      "hottestGpu": 69.9
+    }
+  }
+}

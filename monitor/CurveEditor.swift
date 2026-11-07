@@ -83,7 +83,7 @@ final class EditorModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let data = try JSONDecoder().decode(EditorData.self, from: self.run(["--editor-data"]))
-                guard data.limits.count == 2 else { throw CocoaError(.coderReadCorrupt) }
+                guard !data.limits.isEmpty else { throw CocoaError(.coderReadCorrupt) }
                 DispatchQueue.main.async {
                     self.data = data
                     // Max is a mode; start editing a useful normal curve instead of a flat maximum.

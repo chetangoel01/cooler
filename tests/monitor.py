@@ -12,6 +12,11 @@ Moving to the M5 Pro, written before its code: fan mode read under the M1 Max ke
 name (F0Md), so control is never confirmed; curves drawn past the top of the graph
 once a fan's maximum exceeds 7,000 RPM; a tooltip promising a minimum speed below
 the fans' hardware minimum of 2,000 RPM.
+Supporting every M-series chip, written before its code: temperatures read from
+sensor keys the profile names instead of the ones detected on this Mac; a one-fan
+Mac shown as "Unavailable" because two fans are expected, or with Left and Right
+fan curves; a desktop shown with a palm rest reading and palm curve it does not
+have; the editor refusing a Mac whose fan count is not two.
 Fixtures run the complete plugin with a fake probe and a temporary home folder, so
 they never read or write the real saved curve or action state. The last check
 reads this Mac.
@@ -64,7 +69,9 @@ else: print('pid = 123')
     launchctl.chmod(0o755)
     values = {"F0Ac": 2010, "F1Ac": 2110, "F0Mx": 8400, "F1Mx": 9072,
               "F0Mn": 2000, "F1Mn": 2000, "F0md": 1, "F1md": 1}
-    (source / "probe.json").write_text(json.dumps({"values": values}))
+    hardware = {"cpu": ["Tp00", "Tp04"], "gpu": ["Tg08"], "palm": ["Ts0P", "Ts1P"], "fans": 2, "modeKey": "md"}
+    def sample(): (source / "probe.json").write_text(json.dumps({"values": values, "hardware": hardware}))
+    sample()
     status = {"pid":123, "cpu": 55, "gpu": 49, "palm": 29, "mode": "custom",
               "reason": "Cooling curve active", "targets": [2198, 2244],
               "time": dt.datetime.now(dt.timezone.utc).isoformat()}
@@ -132,16 +139,16 @@ else: print('pid = 123')
     assert not active(menu) and "Targets\tNot set by Cooler" in menu
     checks.append("Yielding to another controller has no Cooler targets and flags the menu bar")
     values.update(F0md=0, F1md=0)
-    (source / "probe.json").write_text(json.dumps({"values": values}))
+    sample()
     menu, _ = run()
     assert "Targets\tSet by macOS" in menu
     checks.append("Hardware automatic mode is identified")
 
     (source/'disabled').touch()
-    values.update({key:42 for key in config['cpuKeys']})
-    values.update({key:39 for key in config['gpuKeys']})
-    values.update({key:27 for key in config['palmKeys']})
-    (source/'probe.json').write_text(json.dumps({'values':values}))
+    values.update({key:42 for key in hardware['cpu']})
+    values.update({key:39 for key in hardware['gpu']})
+    values.update({key:27 for key in hardware['palm']})
+    sample()
     old_time=status['time']; status['time']='2000-01-01T00:00:00Z'
     (source/'status.json').write_text(json.dumps(status))
     menu,_=run()
@@ -151,7 +158,7 @@ else: print('pid = 123')
     checks.append('Apple automatic keeps live temperatures after the daemon is stopped')
     (source/'disabled').unlink()
     values={k:v for k,v in values.items() if k.startswith('F')}
-    (source/'probe.json').write_text(json.dumps({'values':values}))
+    sample()
     status['time']=old_time
 
     status.update(mode="custom", time="2000-01-01T00:00:00Z")
@@ -197,6 +204,24 @@ else: print('pid = 123')
     row = next(row for row in menu.splitlines() if row.startswith("Paused: Bad"))
     assert row.count("|") == 1 and "\t" not in row and "second line" in row
     checks.append("Dynamic text cannot add columns, actions, or menu lines")
+
+    # A one-fan desktop, as the M6 Mac mini reports itself (artifacts/m6-probe.json).
+    hardware = {"cpu": ["Tp05"], "gpu": ["Tg01"], "palm": [], "fans": 1, "modeKey": "md"}
+    values = {"F0Ac": 2010, "F0Mn": 1000, "F0Mx": 4900, "F0md": 1, "Tp05": 48, "Tg01": 41}
+    sample()
+    status.update(mode="custom", reason="Cooling curve active", targets=[2198], palm=None,
+                  time=dt.datetime.now(dt.timezone.utc).isoformat())
+    (source / "status.json").write_text(json.dumps(status))
+    menu, html = run()
+    rows = menu.splitlines()
+    assert "Fans\t2,010 RPM | " in menu and "Targets\t2,198 RPM | " in menu and active(menu), menu
+    assert "CPU\t48° |" in menu and "Palm rest" not in menu
+    assert "<th>Fan</th>" in html and "Left fan" not in html and "Palm rest" not in html
+    assert 'tooltip="1,200 RPM minimum, full speed at 90°C"' in next(r for r in rows if "param2=quiet" in r)
+    editor = subprocess.run([str(PLUGIN), "--editor-data"], text=True, capture_output=True, timeout=6,
+                            env={**os.environ, "HOME": str(home), "COOLER_HOME": str(source)})
+    assert json.loads(editor.stdout)["limits"] == [{"minimum": 1000, "maximum": 4900}], editor.stdout
+    checks.append("A one-fan desktop shows one fan, no palm rest, and opens the editor with its own fan limits")
     assert set((source / "calls").read_text().splitlines()) == {"probe"}
     checks.append("The only hardware command is read-only probe")
 

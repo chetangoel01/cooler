@@ -86,9 +86,19 @@ final class SMC {
             return text(try call(input).key)
         }
     }
+    // Every readable temperature and fan key, as `cooler probe` reports them.
+    func readings() throws -> [String: Double] {
+        var values: [String: Double] = [:]
+        for key in try keys() where key.hasPrefix("T") || key.hasPrefix("F") {
+            if let value = try? self.value(key) { values[key] = value }
+        }
+        return values
+    }
+    func fans() throws -> (count: Int, modeKey: String) { try fanLayout { try? value($0) } }
     func writeFan(_ id: Int, mode: Bool, value: Double) throws {
-        guard (0...1).contains(id), value.isFinite else { throw CoolerError("Invalid fan write") }
-        let key = "F\(id)\(mode ? "md" : "Tg")"
+        let fans = try self.fans()
+        guard (0..<fans.count).contains(id), value.isFinite else { throw CoolerError("Invalid fan write") }
+        let key = "F\(id)\(mode ? fans.modeKey : "Tg")"
         let current = try read(key)
         var input = SMCData()
         input.key = code(key); input.command = 6; input.info.size = current.info.size
@@ -115,7 +125,7 @@ final class SMC {
     }
     func automatic() throws {
         var failures: [String] = []
-        for id in 0..<2 {
+        for id in 0..<(try fans().count) {
             do { try writeFan(id, mode: true, value: 0) }
             catch { failures.append(String(describing: error)); continue }
             // In automatic mode macOS owns the target RPM. Do not write or
@@ -124,9 +134,6 @@ final class SMC {
         if !failures.isEmpty { throw CoolerError(failures.joined(separator: "; ")) }
     }
 }
-
-// The only Mac whose sensor and fan keys have been mapped (artifacts/m5-sensor-discovery.json).
-let supportedModel = "Mac17,13"
 
 func machineModel() -> String {
     var length = 0

@@ -46,8 +46,9 @@ try:
     sample = json.loads(command(exe,'probe'))
     report['observations'].append(sample)
     values = sample['values']
-    check('Both fans accept manual mode and bounded targets', all(values[f'F{i}md'] == 1 and values[f'F{i}Mn'] <= values[f'F{i}Tg'] <= values[f'F{i}Mx'] for i in (0,1)))
-    check('Both fans are physically spinning', all(1000 < values[f'F{i}Ac'] <= values[f'F{i}Mx']*1.05 for i in (0,1)))
+    fans, mode = range(sample['hardware']['fans']), sample['hardware']['modeKey']
+    check('Every fan accepts manual mode and bounded targets', all(values[f'F{i}{mode}'] == 1 and values[f'F{i}Mn'] <= values[f'F{i}Tg'] <= values[f'F{i}Mx'] for i in fans))
+    check('Every fan is physically spinning', all(1000 < values[f'F{i}Ac'] <= values[f'F{i}Mx']*1.05 for i in fans))
     for label, sig in [('Normal termination',signal.SIGTERM), ('Controller crash',signal.SIGKILL), ('Controller stall',signal.SIGSTOP)]:
         old = pid()
         os.kill(old,sig)
@@ -69,7 +70,7 @@ try:
     command(exe,'auto')
     restored = json.loads(command(exe,'probe'))
     report['observations'].append(restored)
-    check('Stopping restores both fan modes to automatic', all(restored['values'][f'F{i}md'] in (0,3) for i in (0,1)))
+    check('Stopping restores every fan to automatic', all(restored['values'][f'F{i}{mode}'] in (0,3) for i in fans))
     command('/bin/launchctl','bootstrap','system',plist)
     current,status = wait_active()
     check('Service restart reapplies custom curve', status['mode'] == 'custom')

@@ -3,9 +3,9 @@
 # installed next to it (sudoers) lets admin users run it without a password.
 #   apply-profile automatic          stop Cooler and keep it off (Apple automatic)
 #   apply-profile curve < EDIT.json  install baselineRPM, curve and palmCurve from stdin
-# Only those three fields are taken from the caller; sensors, model and recovery
-# settings always come from the installed profile, and the controller validates
-# the result before control is interrupted.
+# Only those three fields are taken from the caller; recovery settings always
+# come from the installed profile, and the controller validates the result
+# before control is interrupted.
 set -eu
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH

@@ -60,7 +60,7 @@ def profile_name(config):
 
 
 def custom_config(edited, config):
-    # Only the comfort controls are editable. Sensors and recovery stay installed.
+    # Only the comfort controls are editable. Recovery settings stay installed.
     if not isinstance(edited,dict) or set(edited)!=EDITABLE:
         raise ValueError('A custom curve must contain only the baseline and the two curves.')
     if not number(edited['baselineRPM']) or not 1200 <= edited['baselineRPM'] <= 2500:
@@ -79,12 +79,24 @@ def custom_config(edited, config):
     return {**config,**edited}
 
 
+def probe(timeout):
+    """Readings and the sensor and fan map the controller detected on this Mac."""
+    sample = json.loads(subprocess.run([str(SOURCE/'cooler'),'probe'],capture_output=True,text=True,
+                                       check=True,timeout=timeout).stdout)
+    values, hardware = sample['values'], sample.get('hardware') or {}
+    if not isinstance(values, dict) or not isinstance(hardware, dict): raise ValueError('Unexpected probe output')
+    return values, hardware
+
+
+def fan_names(count):
+    return ['Fan'] if count == 1 else ['Left fan','Right fan'] if count == 2 else [f'Fan {i+1}' for i in range(count)]
+
+
 def editor_data():
     config=read_json(SOURCE/'config.json')
-    result=subprocess.run([str(SOURCE/'cooler'),'probe'],capture_output=True,text=True,check=True,timeout=3)
-    values=json.loads(result.stdout)['values']
-    limits=[{'minimum':values[f'F{i}Mn'],'maximum':values[f'F{i}Mx']} for i in range(2)]
-    if not all(number(f['minimum']) and number(f['maximum']) and 1000 <= f['minimum'] < f['maximum'] <= 10000 for f in limits):
+    values, hardware = probe(3)
+    limits=[{'minimum':values[f'F{i}Mn'],'maximum':values[f'F{i}Mx']} for i in range(hardware.get('fans',0))]
+    if not limits or not all(number(f['minimum']) and number(f['maximum']) and 1000 <= f['minimum'] < f['maximum'] <= 10000 for f in limits):
         raise ValueError('Fan limits are unavailable. Reopen the editor when readings return.')
     saved=read_json(USER_DATA/'custom.json')
     if saved:
@@ -188,9 +200,9 @@ def rpm(value):
     return f"{value:,.0f} RPM" if number(value) and 0 <= value <= 10000 else "Unavailable"
 
 
-def pair(values):
-    # Left and right fans in one cell.
-    if not isinstance(values, list) or len(values) != 2 or not all(number(v) and 0 <= v <= 10000 for v in values):
+def speeds(values):
+    # Every fan in one cell, left to right.
+    if not isinstance(values, list) or not values or not all(number(v) and 0 <= v <= 10000 for v in values):
         return "Unavailable"
     return " · ".join(f"{v:,.0f}" for v in values) + " RPM"
 
@@ -202,7 +214,7 @@ def line(value):
 
 def hint(name, saved, floor=0):
     if name == 'automatic': return 'macOS controls the fans and Cooler stays off'
-    if name == 'max': return 'Both fans at full speed until you switch modes'
+    if name == 'max': return 'Full fan speed until you switch modes'
     try:
         baseline, chip = ((saved['baselineRPM'], [(p['temperature'], p['fraction']) for p in saved['curve']])
                           if name == 'custom' else PROFILES[name][:2])
@@ -230,10 +242,11 @@ def graph(title, points, bounds):
                 {"temperature": high, "fraction": points[-1]["fraction"]}]
     for i, (floor, maximum) in enumerate(bounds):
         path = " ".join(f'{x(p["temperature"]):.1f},{y(floor + (maximum-floor)*p["fraction"]):.1f}' for p in expanded)
-        pieces.append(f'<polyline class="fan{i}" points="{path}"/>')
+        pieces.append(f'<polyline class="fan{i%2}" points="{path}"/>')
         for p in points:
-            pieces.append(f'<circle class="dot{i}" cx="{x(p["temperature"]):.1f}" cy="{y(floor+(maximum-floor)*p["fraction"]):.1f}" r="3"/>')
-    pieces.append('</svg><table><caption class="sr-only">Exact curve points</caption><thead><tr><th>Temperature</th><th>Left fan</th><th>Right fan</th></tr></thead><tbody>')
+            pieces.append(f'<circle class="dot{i%2}" cx="{x(p["temperature"]):.1f}" cy="{y(floor+(maximum-floor)*p["fraction"]):.1f}" r="3"/>')
+    header = ''.join(f'<th>{name}</th>' for name in fan_names(len(bounds)))
+    pieces.append(f'</svg><table><caption class="sr-only">Exact curve points</caption><thead><tr><th>Temperature</th>{header}</tr></thead><tbody>')
     for p in points:
         cells = ''.join(f'<td>{rpm(floor + (maximum-floor)*p["fraction"])}</td>' for floor, maximum in bounds)
         pieces.append(f'<tr><td>{p["temperature"]:g}°C</td>{cells}</tr>')
@@ -241,12 +254,13 @@ def graph(title, points, bounds):
     return f'<section><h2>{escape(title)}</h2>{"".join(pieces)}</section>'
 
 
-def curves(config, values):
+def curves(config, values, hardware):
     try:
         baseline = config["baselineRPM"]
         assert number(baseline) and 1200 <= baseline <= 2500
-        bounds = [(max(baseline, values[f"F{i}Mn"]), values[f"F{i}Mx"]) for i in range(2)]
-        assert all(number(a) and number(b) and 1000 <= a < b <= 10000 for a, b in bounds)
+        bounds = [(max(baseline, values[f"F{i}Mn"]), values[f"F{i}Mx"]) for i in range(hardware.get("fans", 0))]
+        palm = bool(hardware.get("palm"))
+        assert bounds and all(number(a) and number(b) and 1000 <= a < b <= 10000 for a, b in bounds)
         for key in ["curve", "palmCurve"]:
             points = config[key]
             assert len(points) >= 2
@@ -254,17 +268,24 @@ def curves(config, values):
                        number(p["fraction"]) and 0 <= p["fraction"] <= 1 for p in points)
             assert all(a["temperature"] < b["temperature"] and a["fraction"] <= b["fraction"]
                        for a, b in zip(points, points[1:]))
-        content = '<p class="legend"><span class="left">━ Left fan</span><span class="right">┄ Right fan</span></p>'
+        if len(bounds) > 1:
+            content = '<p class="legend">' + ''.join(f'<span class="key{i%2}">{"━┄"[i%2]} {name}</span>'
+                                                     for i, name in enumerate(fan_names(len(bounds)))) + '</p>'
+        else:
+            content = ''
         content += graph("CPU & GPU", config["curve"], bounds)
-        content += graph("Palm rest", config["palmCurve"], bounds)
-        content += '<p class="note">The highest request from CPU, GPU, or palm rest sets both fans. Speeds rise immediately and fall gradually, so the current target can remain above these lines while the laptop cools. Palm readings represent two sensors, not the whole underside.</p>'
+        if palm:
+            content += graph("Palm rest", config["palmCurve"], bounds)
+        sources = 'CPU, GPU, or palm rest' if palm else 'CPU or GPU'
+        content += (f'<p class="note">The highest request from {sources} sets the fans. Speeds rise immediately and fall gradually, so the current target can remain above these lines while the Mac cools.'
+                    + (' Palm readings represent two sensors, not the whole underside.' if palm else '') + '</p>')
     except (KeyError, TypeError, ValueError, AssertionError):
         content = '<p>Curves unavailable. The installed profile and fan limits must both be readable.</p>'
     return '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cooler · Cooling curves</title><style>
 :root{color-scheme:light dark;--bg:oklch(98% .006 230);--ink:oklch(24% .012 230);--muted:oklch(47% .014 230);--grid:oklch(86% .008 230);--accent:oklch(48% .12 240)}
 @media(prefers-color-scheme:dark){:root{--bg:oklch(19% .009 230);--ink:oklch(92% .008 230);--muted:oklch(72% .012 230);--grid:oklch(34% .012 230);--accent:oklch(77% .10 240)}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,sans-serif;font-variant-numeric:tabular-nums}main{max-width:744px;margin:48px auto;padding:0 28px 32px}h1{font-size:28px;letter-spacing:-.025em;margin:4px 0 8px}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--muted);font-size:13px}p{max-width:68ch;margin:8px 0 20px}section{margin:36px 0 48px}svg{width:100%;height:auto;overflow:visible}svg text{fill:var(--muted);font-size:12px}.grid{stroke:var(--grid);stroke-width:1}.fan0,.fan1{fill:none;stroke-width:2.5;stroke-linejoin:round}.fan0{stroke:var(--accent)}.fan1{stroke:var(--ink);stroke-dasharray:7 5}.dot0{fill:var(--accent)}.dot1{fill:var(--ink)}.left{color:var(--accent)}.legend{display:flex;gap:24px;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:right;padding:9px 0;border-bottom:1px solid var(--grid)}td:first-child,th:first-child{text-align:left}th{font-weight:500;color:var(--muted)}.note{font-size:13px;color:var(--muted)}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media(max-width:480px){main{margin-top:24px;padding:0 18px 24px}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,sans-serif;font-variant-numeric:tabular-nums}main{max-width:744px;margin:48px auto;padding:0 28px 32px}h1{font-size:28px;letter-spacing:-.025em;margin:4px 0 8px}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--muted);font-size:13px}p{max-width:68ch;margin:8px 0 20px}section{margin:36px 0 48px}svg{width:100%;height:auto;overflow:visible}svg text{fill:var(--muted);font-size:12px}.grid{stroke:var(--grid);stroke-width:1}.fan0,.fan1{fill:none;stroke-width:2.5;stroke-linejoin:round}.fan0{stroke:var(--accent)}.fan1{stroke:var(--ink);stroke-dasharray:7 5}.dot0{fill:var(--accent)}.dot1{fill:var(--ink)}.key0{color:var(--accent)}.legend{display:flex;gap:24px;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:right;padding:9px 0;border-bottom:1px solid var(--grid)}td:first-child,th:first-child{text-align:left}th{font-weight:500;color:var(--muted)}.note{font-size:13px;color:var(--muted)}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media(max-width:480px){main{margin-top:24px;padding:0 18px 24px}}
 </style><main><div class="eyebrow">COOLER / INSTALLED PROFILE</div><h1>Cooling curves</h1>''' + f'<p>{profile_name(config)} profile. Requested fan speed at each temperature. These are your configured curves, not a temperature history.</p>' + content + '<footer class="note">Read-only view. Open again from the menu bar after changing the profile.</footer></main></html>'
 
 
@@ -278,21 +299,19 @@ def main():
         fresh = fresh and pid is not None and status.get('pid')==pid
     except (KeyError, TypeError, ValueError, AttributeError):
         fresh = False
-    values = {}
+    values, hardware = {}, {}
     try:
-        result = subprocess.run([str(SOURCE / "cooler"), "probe"], capture_output=True,
-                                text=True, timeout=2, check=True)
-        values = json.loads(result.stdout)["values"]
-        if not isinstance(values, dict): values = {}
+        values, hardware = probe(2)
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
         pass
-    fan_readings = all(number(values.get(f"F{i}{key}")) for i in range(2) for key in ["Ac", "md"])
-    active = fresh and status.get("mode") == "custom" and fan_readings and all(values[f"F{i}md"] == 1 for i in range(2))
-    automatic = fan_readings and all(values[f"F{i}md"] in [0, 3] for i in range(2)) and (
+    fans, mode_key = range(hardware.get("fans", 0)), hardware.get("modeKey")
+    fan_readings = len(fans) > 0 and all(number(values.get(f"F{i}{key}")) for i in fans for key in ["Ac", mode_key])
+    active = fresh and status.get("mode") == "custom" and fan_readings and all(values[f"F{i}{mode_key}"] == 1 for i in fans)
+    automatic = fan_readings and all(values[f"F{i}{mode_key}"] in [0, 3] for i in fans) and (
         (fresh and status.get('mode')=='automatic') or (disabled is True and pid is None))
     temperatures = {}
     for group in ['cpu','gpu','palm']:
-        keys = config.get(group+'Keys',[])
+        keys = hardware.get(group,[])
         readings = [values.get(key) for key in keys]
         valid = readings and all(number(v) and 5 <= v <= 125 for v in readings)
         temperatures[group] = max(readings) if valid else status.get(group) if fresh else None
@@ -333,10 +352,12 @@ def main():
     elif resuming:
         print(f"Resuming control… | {MUTED}")
     for key, name in [("cpu", "CPU"), ("gpu", "GPU"), ("palm", "Palm rest")]:
+        # Desktops have no palm rest; the row stays while the sensors are merely unreadable.
+        if key == "palm" and hardware.get("palm") == []: continue
         print(f"{name}\t{temperature(temperatures[key])} | {INK}")
-    print(f"Fans\t{pair([values.get(f'F{i}Ac') for i in range(2)])} | {INK}")
+    print(f"Fans\t{speeds([values.get(f'F{i}Ac') for i in fans])} | {INK}")
     # Holding Option swaps measured speeds for Cooler's targets, shown only while it is verified in control.
-    target = (pair(status.get('targets')) if active else 'Set by macOS' if automatic else
+    target = (speeds(status.get('targets')) if active else 'Set by macOS' if automatic else
               'Not set by Cooler' if fresh and mode == 'automatic' else 'Unavailable')
     print(f"Targets\t{target} | {INK} alternate=true")
     print('---')
@@ -345,7 +366,7 @@ def main():
                     'max':'Max Cooling'}
     if saved: descriptions['custom']='Custom Curve'
     script_path = json.dumps(str(Path(__file__).resolve()))
-    floor = min((values[f'F{i}Mn'] for i in range(2) if number(values.get(f'F{i}Mn'))), default=0)
+    floor = min((values[f'F{i}Mn'] for i in fans if number(values.get(f'F{i}Mn'))), default=0)
     for name,title in descriptions.items():
         checked = str(selected==name).lower()
         print(f'{title} | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--apply-profile param2={name} terminal=false refresh=true checked={checked} tooltip="{hint(name, saved, floor)}"')
@@ -354,7 +375,7 @@ def main():
     try:
         CACHE.mkdir(parents=True, exist_ok=True)
         page = CACHE / "curves.html"
-        html = curves(config, values)
+        html = curves(config, values, hardware)
         if not page.exists() or page.read_text() != html:
             temporary = CACHE / "curves.tmp"
             temporary.write_text(html)

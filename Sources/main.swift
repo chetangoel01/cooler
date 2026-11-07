@@ -13,9 +13,8 @@ func emit<T: Encodable>(_ value: T) {
     }
 }
 func log(_ message: String) { fputs("\(ISO8601DateFormatter().string(from: Date())) \(message)\n", stderr) }
-func requireHardware() throws {
-    guard machineModel() == supportedModel else { throw CoolerError("This build is restricted to \(supportedModel)") }
-}
+// Cheap, so it never blocks restoring automatic control; sensors are checked where they are read.
+func requireHardware() throws { _ = try chipGeneration(cpuBrand()) }
 func requireRoot() throws {
     guard geteuid() == 0 else { throw CoolerError("Administrator privileges are required for fan changes") }
 }
@@ -43,13 +42,10 @@ func acquireLock() throws -> Int32 {
     return fd
 }
 func probe() throws {
-    let smc = try SMC()
-    var values: [String: Double] = [:]
-    for key in try smc.keys() where key.hasPrefix("T") || key.hasPrefix("F") {
-        if let value = try? smc.value(key) { values[key] = value }
-    }
-    struct Probe: Encodable { let model: String; let time: String; let values: [String:Double] }
-    emit(Probe(model: machineModel(), time: ISO8601DateFormatter().string(from: Date()), values: values))
+    let values = try SMC().readings()
+    struct Probe: Encodable { let model: String; let chip: String; let time: String; let values: [String:Double]; let hardware: Hardware? }
+    emit(Probe(model: machineModel(), chip: cpuBrand(), time: ISO8601DateFormatter().string(from: Date()), values: values,
+               hardware: try? hardware(brand: cpuBrand(), values: values)))
 }
 func watchdog(_ parent: pid_t, restore: () throws -> Void) throws {
     guard parent > 1, getppid() == parent else { throw CoolerError("Watchdog requires its controller parent") }
@@ -81,7 +77,8 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
     try requireHardware()
     let config = try Config.load(configPath)
     let smc = try SMC()
-    let controller = Controller(config)
+    let machine = try hardware(brand: cpuBrand(), values: smc.readings())
+    let controller = Controller(config, fans: machine.fans)
     var watchdogProcess: Process?
     var heartbeat: FileHandle?
     var lockFD: Int32 = -1
@@ -114,7 +111,7 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
     var previousMode = "", previousReason = ""
     while stopped == 0 && (samples == 0 || count < samples) {
         if let watcher = watchdogProcess, !watcher.isRunning { throw CoolerError("Watchdog exited; refusing further control") }
-        var frame = readFrame(smc, config)
+        var frame = readFrame(smc, machine)
         let now = Date()
         frame.elapsed = count == 0 ? 2 : now.timeIntervalSince(previousTime)
         previousTime = now
@@ -126,7 +123,7 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
         var decision = try controller.step(frame, write: { id, rpm in
             try heartbeat?.write(contentsOf: Data([1]))
             if !dry {
-                if try smc.value("F\(id)md") != 1 { try smc.writeFan(id, mode: true, value: 1) }
+                if try smc.value("F\(id)\(machine.modeKey)") != 1 { try smc.writeFan(id, mode: true, value: 1) }
                 try smc.writeFan(id, mode: false, value: rpm)
             }
         }, restore: { if !dry { try smc.automatic() } })
@@ -147,8 +144,8 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
     }
 }
 func replay(_ configPath: String, _ framesPath: String) throws {
-    let controller = Controller(try Config.load(configPath))
     let frames = try JSONDecoder().decode([Frame].self, from: Data(contentsOf: URL(fileURLWithPath: framesPath)))
+    let controller = Controller(try Config.load(configPath), fans: frames.first?.maxRPM?.count ?? 2)
     for frame in frames {
         let decision = try controller.step(frame, write: { id, _ in
             if id == frame.failFan { throw CoolerError("Injected write failure") }
@@ -177,15 +174,16 @@ do {
         let fd = try acquireLock(); defer { close(fd) }
         guard try !conflict() else { throw CoolerError("Quit the other fan controller first") }
         let smc = try SMC()
+        let fans = try smc.fans()
         defer { do { try smc.automatic() } catch { log("Restoration failed: \(error)") } }
-        for id in 0..<2 {
+        for id in 0..<fans.count {
             try smc.writeFan(id, mode: true, value: 1)
             try smc.writeFan(id, mode: false, value: try smc.value("F\(id)Mx"))
         }
         usleep(2_000_000)
         var values: [String:Double] = [:]
-        for id in 0..<2 {
-            for suffix in ["md", "Tg", "Ac", "Mx"] {
+        for id in 0..<fans.count {
+            for suffix in [fans.modeKey, "Tg", "Ac", "Mx"] {
                 let key = "F\(id)\(suffix)"; values[key] = try smc.value(key)
             }
         }
@@ -205,7 +203,9 @@ do {
         guard args.count == 2 else { throw CoolerError("check requires a configuration path") }
         try requireHardware()
         let config = try Config.load(args[1])
-        let result = try Controller(config).step(readFrame(try SMC(), config), write: { _,_ in }, restore: {})
+        let smc = try SMC()
+        let machine = try hardware(brand: cpuBrand(), values: smc.readings())
+        let result = try Controller(config, fans: machine.fans).step(readFrame(smc, machine), write: { _,_ in }, restore: {})
         guard result.mode == "custom" else { throw CoolerError(result.reason) }
         emit(result)
     case "run":
@@ -217,6 +217,12 @@ do {
     case "replay":
         guard args.count == 3 else { throw CoolerError("replay CONFIG FRAMES") }
         try replay(args[1], args[2])
-    default: print("Cooler: probe | dry-run CONFIG SAMPLES | replay CONFIG FRAMES | run CONFIG | auto")
+    case "map":
+        // The sensor and fan map a Mac with this chip and a saved `cooler probe` output would use.
+        guard args.count == 3 else { throw CoolerError("map BRAND PROBE") }
+        struct Saved: Decodable { let values: [String: Double] }
+        let saved = try JSONDecoder().decode(Saved.self, from: Data(contentsOf: URL(fileURLWithPath: args[2])))
+        emit(try hardware(brand: args[1], values: saved.values))
+    default: print("Cooler: probe | map BRAND PROBE | check CONFIG | dry-run CONFIG SAMPLES | replay CONFIG FRAMES | run CONFIG | auto")
     }
 } catch { log(String(describing: error)); exit(1) }

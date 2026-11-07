@@ -153,7 +153,7 @@ if [[ $PUBLISH == 1 ]]; then
 brew install chetangoel01/tap/cooler
 ```
 
-Fan curves and menu bar temperatures for the M5 Pro MacBook Pro.
+Fan curves and menu bar temperatures for Apple silicon Macs.
 Upgrade with `brew upgrade cooler`. Source and releases:
 https://github.com/chetangoel01/cooler
 README

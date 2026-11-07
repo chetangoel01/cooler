@@ -1,6 +1,6 @@
 # Third-party notices
 
-The SMC wire layout follows [Stats](https://github.com/exelban/stats), retrieved 2026-09-26. The M5 CPU sensor keys and the lowercase M5 fan mode keys (`F0md`/`F1md`) follow Stats as retrieved 2026-11-07; the GPU keys were identified on this Mac by load testing. Cooler implements only the M5 Pro (Mac17,13) path and does not write thermal-manager unlock keys.
+The SMC wire layout follows [Stats](https://github.com/exelban/stats), retrieved 2026-09-26. The per-generation sensor keys for M1–M4, the M5 CPU keys, and the choice between `F0md` and `F0Md` mode keys follow Stats as retrieved 2026-11-07 (`Sources/Hardware.swift`). The M5 GPU keys and the M6 CPU and GPU keys were identified by load tests on an M5 Pro and an M6 Mac mini. Cooler does not write the thermal-manager unlock key (`Ftst`) that Stats uses on M1–M4.
 
 MIT License
 

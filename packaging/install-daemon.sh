@@ -14,8 +14,9 @@ base='/Library/Application Support/Cooler'
 job=system/com.chetangoel.cooler
 plist=/Library/LaunchDaemons/com.chetangoel.cooler.plist
 [ "$(/usr/bin/id -u)" = 0 ] || { echo 'Run this as root.' >&2; exit 1; }
-if [ "$(/usr/sbin/sysctl -n hw.model)" != Mac17,13 ]; then
-  echo 'Cooler controls fans only on Mac17,13; the controller was not installed.' >&2
+# Reads this Mac's sensors and fans without changing them; the helper prints why it cannot.
+if ! "$helper" check "$resources/config.json" >/dev/null; then
+  echo 'Cooler cannot control the fans on this Mac; the controller was not installed.' >&2
   exit 0
 fi
 if /usr/bin/pgrep -x 'Macs Fan Control|Stats|TG Pro|smcFanControl|macfan' >/dev/null; then

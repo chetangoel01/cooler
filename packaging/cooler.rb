@@ -4,7 +4,7 @@ cask "cooler" do
 
   url "https://github.com/chetangoel01/cooler/releases/download/v#{version}/Cooler-#{version}.dmg"
   name "Cooler"
-  desc "Fan curves and menu bar temperatures for the M5 Pro MacBook Pro"
+  desc "Fan curves and menu bar temperatures for Apple silicon Macs"
   homepage "https://github.com/chetangoel01/cooler"
 
   livecheck do
@@ -58,7 +58,8 @@ cask "cooler" do
       ]
 
   caveats <<~EOS
-    Cooler controls the fans only on a Mac17,13 (MacBook Pro, M5 Pro).
+    Cooler controls the fans on M1 to M6 Macs that have them. The installer checks
+    this Mac first and installs no controller where it cannot control the fans.
     SwiftBar should use ~/Library/Application Support/SwiftBar/Plugins as its plugin folder.
   EOS
 end
