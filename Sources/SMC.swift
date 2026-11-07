@@ -98,13 +98,16 @@ final class SMC {
     func writeFan(_ id: Int, mode: Bool, value: Double) throws {
         let fans = try self.fans()
         guard (0..<fans.count).contains(id), value.isFinite else { throw CoolerError("Invalid fan write") }
-        let key = "F\(id)\(mode ? fans.modeKey : "Tg")"
+        try write("F\(id)\(mode ? fans.modeKey : "Tg")", flag: mode, value: value)
+    }
+    // Writes a one-byte flag (a fan mode or Ftst) or a float RPM target.
+    private func write(_ key: String, flag: Bool, value: Double) throws {
         let current = try read(key)
         var input = SMCData()
         input.key = code(key); input.command = 6; input.info.size = current.info.size
         let type = text(current.info.type)
-        if mode {
-            guard type == "ui8 ", input.info.size == 1, value == 0 || value == 1 else { throw CoolerError("Invalid mode write") }
+        if flag {
+            guard type == "ui8 " || type == "flag", input.info.size == 1, value == 0 || value == 1 else { throw CoolerError("Invalid flag write to \(key)") }
             input.bytes.0 = UInt8(value)
         } else {
             guard type == "flt ", input.info.size == 4, (0...10000).contains(value) else { throw CoolerError("Invalid RPM write") }
@@ -115,21 +118,60 @@ final class SMC {
         _ = try call(input)
         // Some SMC keys expose their old value briefly after a successful write.
         // Poll the readback, never retry an unverified mutation indefinitely.
-        var actual = try self.value(key)
+        func observed() throws -> Double { flag ? Double(try read(key).bytes.0) : try self.value(key) }
+        var actual = try observed()
         for _ in 0..<20 {
-            if abs(actual - value) < (mode ? 0.5 : 2) || (mode && value == 0 && actual == 3) { return }
+            if abs(actual - value) < (flag ? 0.5 : 2) || (flag && value == 0 && actual == 3) { return }
             usleep(50_000)
-            actual = try self.value(key)
+            actual = try observed()
         }
         throw CoolerError("Write readback failed for \(key): requested \(value), observed \(actual)")
     }
+    private func retrying(for seconds: TimeInterval, _ waiting: () throws -> Void, _ attempt: () throws -> Void) throws {
+        let deadline = ProcessInfo.processInfo.systemUptime + seconds
+        while true {
+            do { return try attempt() } catch { if ProcessInfo.processInfo.systemUptime >= deadline { throw error } }
+            try waiting(); usleep(100_000)
+        }
+    }
+    // The thermal-manager unlock flag, nil on Macs without it (the M1 Max, M5 Pro and M6 mini).
+    func unlockFlag() -> UInt8? {
+        guard let output = try? read("Ftst"), output.info.size == 1 else { return nil }
+        return output.bytes.0
+    }
+    // Puts one fan in manual mode. The direct write works on the M1 Max, M5 Pro and M6
+    // mini. On M3 and M4 Macs macOS's thermal manager refuses mode and target writes
+    // while it holds the fans; there, as Stats does, set Ftst so it lets go (3–6 s in
+    // the research Stats follows) and retry. `waiting` runs between attempts so the
+    // watchdog keeps hearing from the controller.
+    func manual(_ id: Int, waiting: () throws -> Void = {}) throws {
+        if try value("F\(id)\(fans().modeKey)") == 1 { return }
+        do { try writeFan(id, mode: true, value: 1) } catch {
+            guard let unlock = unlockFlag() else { throw error }
+            if unlock != 1 { try retrying(for: 5, waiting) { try write("Ftst", flag: true, value: 1) } }
+            try retrying(for: 30, waiting) { try writeFan(id, mode: true, value: 1) }
+        }
+    }
+    // Hands every fan back to macOS. Fans already in automatic (0) or system (3) mode
+    // are left alone, since an M3 or M4 Mac refuses mode writes while macOS holds the
+    // fans. Ftst is cleared last, whoever set it and even if the fans cannot be read,
+    // so macOS's thermal manager takes the fans back.
     func automatic() throws {
         var failures: [String] = []
-        for id in 0..<(try fans().count) {
-            do { try writeFan(id, mode: true, value: 0) }
-            catch { failures.append(String(describing: error)); continue }
-            // In automatic mode macOS owns the target RPM. Do not write or
-            // compare it to zero: this machine immediately publishes its own target.
+        do {
+            let fans = try self.fans()
+            for id in 0..<fans.count {
+                do {
+                    let mode = try value("F\(id)\(fans.modeKey)")
+                    if mode != 0 && mode != 3 { try writeFan(id, mode: true, value: 0) }
+                } catch { failures.append(String(describing: error)) }
+                // In automatic mode macOS owns the target RPM. Do not write or
+                // compare it to zero: this machine immediately publishes its own target.
+            }
+        } catch { failures.append(String(describing: error)) }
+        if let unlock = unlockFlag(), unlock != 0 {
+            do { try retrying(for: 1, {}) { try write("Ftst", flag: true, value: 0) } }
+            catch { failures.append(String(describing: error)) }
         }
         if !failures.isEmpty { throw CoolerError(failures.joined(separator: "; ")) }
     }

@@ -14,6 +14,8 @@ if /bin/launchctl print system/com.chetangoel.cooler >/dev/null 2>&1; then
   /bin/launchctl bootout system/com.chetangoel.cooler
 fi
 if [ -x "$base/cooler" ]; then ./build/cooler auto; fi
+# Briefly runs every fan at full speed to confirm macOS lets Cooler take them, before anything is installed.
+./build/cooler hardware-check > artifacts/hardware-check.json || { ./build/cooler auto || true; exit 1; }
 /usr/bin/install -d -o root -g wheel -m 755 "$base"
 /usr/bin/install -o root -g wheel -m 755 build/cooler "$base/cooler"
 /usr/bin/install -o root -g wheel -m 644 config.json "$base/config.json"
@@ -23,7 +25,6 @@ if [ -x "$base/cooler" ]; then ./build/cooler auto; fi
 /usr/sbin/visudo -cqf sudoers
 /usr/bin/install -o root -g wheel -m 440 sudoers /etc/sudoers.d/cooler
 "$base/cooler" auto
-"$base/cooler" hardware-check > artifacts/hardware-check.json
 /bin/launchctl enable system/com.chetangoel.cooler
 /bin/launchctl bootstrap system "$plist"
 echo 'Cooler installed. Status: /Library/Application Support/Cooler/status.json'

@@ -123,7 +123,7 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
         var decision = try controller.step(frame, write: { id, rpm in
             try heartbeat?.write(contentsOf: Data([1]))
             if !dry {
-                if try smc.value("F\(id)\(machine.modeKey)") != 1 { try smc.writeFan(id, mode: true, value: 1) }
+                try smc.manual(id) { try heartbeat?.write(contentsOf: Data([1])) }
                 try smc.writeFan(id, mode: false, value: rpm)
             }
         }, restore: { if !dry { try smc.automatic() } })
@@ -177,7 +177,7 @@ do {
         let fans = try smc.fans()
         defer { do { try smc.automatic() } catch { log("Restoration failed: \(error)") } }
         for id in 0..<fans.count {
-            try smc.writeFan(id, mode: true, value: 1)
+            try smc.manual(id)
             try smc.writeFan(id, mode: false, value: try smc.value("F\(id)Mx"))
         }
         usleep(2_000_000)
@@ -187,6 +187,8 @@ do {
                 let key = "F\(id)\(suffix)"; values[key] = try smc.value(key)
             }
         }
+        // 1 if the thermal-manager unlock was needed; absent on Macs without the key.
+        if let unlock = smc.unlockFlag() { values["Ftst"] = Double(unlock) }
         emit(values)
     case "watch":
         guard args.count == 2, let pid = Int32(args[1]) else { throw CoolerError("watch requires a parent PID") }

@@ -9,7 +9,8 @@ sensor map (an M7, an Intel CPU) or a Mac without fans is controlled anyway; a o
 Mac is driven as if it had two; the manual-mode key is written under the wrong
 spelling (F0Md on the M1 Max, F0md on the M5 Pro); a Mac without palm sensors is
 refused; an installed profile from an older version, which still names a model
-and sensors, stops loading.
+and sensors, stops loading. Later: a Mac whose fan keys differ from the ones Cooler
+writes passes the read-only check and fails only once installed.
 """
 import json, pathlib, subprocess, tempfile, datetime
 root = pathlib.Path(__file__).resolve().parents[1]
@@ -106,6 +107,10 @@ for brand in ['Apple M7 Pro', 'Apple M10', 'Intel(R) Core(TM) i9-9980HK CPU @ 2.
     check(f'{brand} is refused', p.returncode != 0)
 p, _ = mapped('Apple M5', {**m5, 'values': {**m5['values'], 'FNum': 0}})
 check('a Mac without fans is refused', p.returncode != 0)
+p, _ = mapped('Apple M5 Pro', {**m5, 'values': {k: v for k, v in m5['values'].items() if k != 'F1Tg'}})
+check('a Mac missing a fan key Cooler writes is refused, naming the key', p.returncode != 0 and 'F1Tg' in p.stderr)
+p, _ = mapped('Apple M1 Max', {**m1, 'values': {k: v for k, v in m1['values'].items() if k not in ('F0Md', 'F1Md')}})
+check('a Mac with neither mode-key spelling is refused', p.returncode != 0 and 'F0Md' in p.stderr)
 p, _ = mapped('Apple M3 Max', m5)
 check('a Mac whose generation lists none of its keys is refused', p.returncode != 0)
 report = {'time': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'checks': checks, 'scope': 'Compiled CLI replay; no hardware writes. Live verification is separate.'}

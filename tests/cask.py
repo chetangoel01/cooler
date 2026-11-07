@@ -9,7 +9,8 @@ upgrade instead of only the first install; uninstall leaves the daemon loaded,
 the fans in manual mode, or its plist behind; uninstall deletes the profile the
 next install should keep; an install proceeds while another fan controller runs;
 an install on a Mac Cooler cannot control (a chip without a sensor map, a Mac
-without fans) starts a controller that cannot work there.
+without fans) starts a controller that cannot work there; a first install copies
+files and a sudo rule before learning that macOS refuses Cooler's fan writes.
 Found in the first Homebrew install: files copied out of the downloaded app keep
 its quarantine flag, and launchd refuses to load a quarantined daemon plist; and
 Homebrew runs install steps with a temporary HOME, so "~" paths in the cask never
@@ -66,6 +67,8 @@ elif command == "cooler":
     if args[0] == "auto" and state["loaded"]: code = 43
     if args[0] == "check" and not state["supported"]:
         print("Cooler has no sensor map for Apple M7", file=sys.stderr); code = 1
+    if args[0] == "hardware-check" and state["refused"]:
+        print("SMC F0Md operation 6: IOKit 0, SMC 130", file=sys.stderr); code = 1
 (p / "state.json").write_text(json.dumps(state))
 sys.exit(code)
 '''
@@ -108,7 +111,7 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
         subprocess.run(["/usr/bin/xattr", "-w", *QUARANTINE, str(path)], check=True)
 
     def run(target, **state):
-        current = {"supported": True, "competitor": False, "loaded": False, "disabled": False}
+        current = {"supported": True, "competitor": False, "loaded": False, "disabled": False, "refused": False}
         path = work / "state.json"
         if path.exists():
             current.update(json.loads(path.read_text()))
@@ -169,6 +172,14 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
         assert message in result.stderr and not plist.exists() and not state["loaded"], result
         assert (result.returncode == 0) == ("supported" in change)
     checks.append("No controller is installed while another fan app runs or on a Mac Cooler cannot control")
+
+    run(uninstaller, supported=True)
+    (base / "config.json").unlink(missing_ok=True)
+    result, state, events = run(installer, refused=True)
+    assert result.returncode == 0 and "cannot control the fans" in result.stderr, result
+    assert not any(command == "install" for command, _ in events) and not state["loaded"], events
+    assert cooler_calls(events) == ["check", "hardware-check", "auto"], events
+    checks.append("A first install whose full-speed check fails restores automatic control and installs nothing")
 
 cask = (ROOT / "packaging/cooler.rb").read_text()
 steps = cask[cask.index("postflight_steps do"):cask.index("\n  uninstall launchctl")]

@@ -14,17 +14,21 @@ base='/Library/Application Support/Cooler'
 job=system/com.chetangoel.cooler
 plist=/Library/LaunchDaemons/com.chetangoel.cooler.plist
 [ "$(/usr/bin/id -u)" = 0 ] || { echo 'Run this as root.' >&2; exit 1; }
-# Reads this Mac's sensors and fans without changing them; the helper prints why it cannot.
-if ! "$helper" check "$resources/config.json" >/dev/null; then
+refuse() {
   echo 'Cooler cannot control the fans on this Mac; the controller was not installed.' >&2
   exit 0
-fi
+}
+# Reads this Mac's sensors and fans without changing them; the helper prints why it cannot.
+"$helper" check "$resources/config.json" >/dev/null || refuse
 if /usr/bin/pgrep -x 'Macs Fan Control|Stats|TG Pro|smcFanControl|macfan' >/dev/null; then
   echo 'Quit other fan controllers, then reinstall Cooler.' >&2
   exit 1
 fi
 first=0
 [ -f "$base/config.json" ] || first=1
+# A first install briefly runs every fan at full speed to confirm macOS lets Cooler
+# take them, before anything is installed.
+if [ "$first" = 1 ]; then "$helper" hardware-check >/dev/null || { "$helper" auto || true; refuse; }; fi
 # Apple Automatic persists as a disabled launchd job; an upgrade keeps it off.
 off=0
 if /bin/launchctl print-disabled system | /usr/bin/grep -Eq '"com\.chetangoel\.cooler" => (disabled|true)'; then off=1; fi
@@ -47,7 +51,6 @@ for installed in "$plist" "$base/cooler" "$base/uninstall.sh" "$base/apply-profi
   /usr/bin/xattr -d com.apple.quarantine "$installed" 2>/dev/null || true
 done
 "$base/cooler" auto
-if [ "$first" = 1 ]; then "$base/cooler" hardware-check >/dev/null; fi
 if [ "$off" = 1 ]; then
   echo 'Cooler is installed and stays off because Apple Automatic is selected.'
   exit 0

@@ -72,6 +72,9 @@ func fanLayout(_ read: (String) -> Double?) throws -> (count: Int, modeKey: Stri
 func hardware(brand: String, values: [String: Double]) throws -> Hardware {
     let chip = chips[try chipGeneration(brand)]!
     let fans = try fanLayout { values[$0] }
+    let missing = (0..<fans.count).flatMap { id in [fans.modeKey, "Tg", "Mn", "Mx", "Ac"].map { "F\(id)\($0)" } }
+        .filter { values[$0] == nil }
+    guard missing.isEmpty else { throw CoolerError("This Mac lacks the fan keys Cooler uses: \(missing.joined(separator: ", "))") }
     let cpu = chip.cpu.select(values), gpu = chip.gpu.select(values)
     guard !cpu.isEmpty, !gpu.isEmpty else { throw CoolerError("None of the known \(brand) sensors are present") }
     return Hardware(cpu: cpu, gpu: gpu, palm: Sensors.listed(palmKeys).select(values), fans: fans.count, modeKey: fans.modeKey)
