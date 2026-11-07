@@ -106,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
         subprocess.run(["/usr/bin/xattr", "-w", *QUARANTINE, str(path)], check=True)
 
     def run(target, **state):
-        current = {"model": "MacBookPro18,4", "competitor": False, "loaded": False, "disabled": False}
+        current = {"model": "Mac17,13", "competitor": False, "loaded": False, "disabled": False}
         path = work / "state.json"
         if path.exists():
             current.update(json.loads(path.read_text()))
@@ -160,8 +160,8 @@ with tempfile.TemporaryDirectory(prefix="cooler-cask-") as directory:
     assert json.loads((base / "config.json").read_text()) == maximum and plist.exists()
     checks.append("An upgrade after Apple Automatic installs Cooler but leaves it off")
 
-    for change, message in [({"competitor": True}, "other fan controllers"), ({"model": "Mac14,6"}, "MacBookPro18,4")]:
-        run(uninstaller, disabled=False, competitor=False, model="MacBookPro18,4")
+    for change, message in [({"competitor": True}, "other fan controllers"), ({"model": "MacBookPro18,4"}, "Mac17,13")]:
+        run(uninstaller, disabled=False, competitor=False, model="Mac17,13")
         result, state, events = run(installer, **change)
         assert message in result.stderr and not plist.exists() and not state["loaded"], result
         assert (result.returncode == 0) == ("model" in change)

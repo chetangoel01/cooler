@@ -70,7 +70,7 @@ with tempfile.TemporaryDirectory(prefix='cooler-curves-') as directory:
     for temperature in [5,20,40,70,100,125]:
         frames.write_text(json.dumps([{'cpu':temperature,'gpu':temperature,'palm':temperature,'elapsed':2}]))
         result=subprocess.run([str(ROOT/'build/cooler'),'replay',str(path),str(frames)],capture_output=True,text=True,check=True)
-        assert json.loads(result.stdout)['targets']==[5779,6241]
+        assert json.loads(result.stdout)['targets']==[8400,9072]
     for fault in [{'conflict':True},{'cpu':None},{'elapsed':11}]:
         frames.write_text(json.dumps([{'cpu':50,'gpu':40,'palm':30,'elapsed':2,**fault}]))
         result=subprocess.run([str(ROOT/'build/cooler'),'replay',str(path),str(frames)],capture_output=True,text=True,check=True)

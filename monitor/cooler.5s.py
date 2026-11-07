@@ -200,14 +200,15 @@ def line(value):
     return str(value).replace("|", "/").replace("\n", " ").replace("\r", " ").replace("\t", " ")
 
 
-def hint(name, saved):
+def hint(name, saved, floor=0):
     if name == 'automatic': return 'macOS controls the fans and Cooler stays off'
     if name == 'max': return 'Both fans at full speed until you switch modes'
     try:
         baseline, chip = ((saved['baselineRPM'], [(p['temperature'], p['fraction']) for p in saved['curve']])
                           if name == 'custom' else PROFILES[name][:2])
         full = next(t for t, f in chip if f >= 1)
-        return line(f"{baseline:,.0f} RPM minimum, full speed at {full:g}°C").replace('"', "'")
+        # The fans never run below their hardware minimum, whatever the profile's baseline.
+        return line(f"{max(baseline, floor):,.0f} RPM minimum, full speed at {full:g}°C").replace('"', "'")
     except (KeyError, TypeError, ValueError, StopIteration):
         return 'Your saved curve'
 
@@ -215,10 +216,11 @@ def hint(name, saved):
 def graph(title, points, bounds):
     low, high = points[0]["temperature"] - 5, points[-1]["temperature"] + 5
     width, height = 680, 270
+    top = math.ceil(max(maximum for _, maximum in bounds) / 1000) * 1000
     def x(value): return 64 + (value - low) / (high - low) * 584
-    def y(value): return 222 - value / 7000 * 198
+    def y(value): return 222 - value / top * 198
     pieces = [f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title)} temperature to fan RPM curve">']
-    for value in [2000, 4000, 6000]:
+    for value in range(2000, top + 1, 2000):
         pieces.append(f'<path class="grid" d="M64 {y(value):.1f}H648"/><text x="52" y="{y(value)+4:.1f}" text-anchor="end">{value:,}</text>')
     pieces.append('<text x="64" y="14">RPM</text>')
     for point in points:
@@ -284,9 +286,9 @@ def main():
         if not isinstance(values, dict): values = {}
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
         pass
-    fan_readings = all(number(values.get(f"F{i}{key}")) for i in range(2) for key in ["Ac", "Md"])
-    active = fresh and status.get("mode") == "custom" and fan_readings and all(values[f"F{i}Md"] == 1 for i in range(2))
-    automatic = fan_readings and all(values[f"F{i}Md"] in [0, 3] for i in range(2)) and (
+    fan_readings = all(number(values.get(f"F{i}{key}")) for i in range(2) for key in ["Ac", "md"])
+    active = fresh and status.get("mode") == "custom" and fan_readings and all(values[f"F{i}md"] == 1 for i in range(2))
+    automatic = fan_readings and all(values[f"F{i}md"] in [0, 3] for i in range(2)) and (
         (fresh and status.get('mode')=='automatic') or (disabled is True and pid is None))
     temperatures = {}
     for group in ['cpu','gpu','palm']:
@@ -343,9 +345,10 @@ def main():
                     'max':'Max Cooling'}
     if saved: descriptions['custom']='Custom Curve'
     script_path = json.dumps(str(Path(__file__).resolve()))
+    floor = min((values[f'F{i}Mn'] for i in range(2) if number(values.get(f'F{i}Mn'))), default=0)
     for name,title in descriptions.items():
         checked = str(selected==name).lower()
-        print(f'{title} | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--apply-profile param2={name} terminal=false refresh=true checked={checked} tooltip="{hint(name, saved)}"')
+        print(f'{title} | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--apply-profile param2={name} terminal=false refresh=true checked={checked} tooltip="{hint(name, saved, floor)}"')
     print('---')
     print(f'Edit Custom Curve… | bash=/opt/homebrew/bin/python3 param0={script_path} param1=--edit-curves terminal=false refresh=true')
     try:

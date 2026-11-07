@@ -129,7 +129,7 @@ sys.exit(code)
                                   capture_output=True,text=True,check=True)
             targets.append(json.loads(result.stdout)['targets'])
         assert all(targets[0][i] <= targets[1][i] <= targets[2][i] for i in range(2)), (temperature,targets)
-        if temperature >= 90 or palm >= 40: assert targets[0] == targets[1] == targets[2] == [5779,6241]
+        if temperature >= 90 or palm >= 40: assert targets[0] == targets[1] == targets[2] == [8400,9072]
     checks.append('Quiet ≤ Balanced ≤ Cooler across CPU/GPU and palm ranges; full speed by 90°C chip or 40°C palm')
 
     result,state,_=execute('automatic')

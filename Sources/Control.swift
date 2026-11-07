@@ -12,7 +12,7 @@ struct Config: Codable {
     let palmCurve: [Point]
     static func load(_ path: String) throws -> Config {
         let config = try JSONDecoder().decode(Config.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
-        guard config.model == "MacBookPro18,4", (1200...2500).contains(config.baselineRPM),
+        guard config.model == supportedModel, (1200...2500).contains(config.baselineRPM),
               (10...100).contains(config.fallRPMPerSecond),
               [config.cpuKeys, config.gpuKeys, config.palmKeys].allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.utf8.count == 4 && $0.hasPrefix("T") } }) else {
             throw CoolerError("Invalid configuration or unsupported model")
@@ -66,7 +66,7 @@ final class Controller {
     }
     func step(_ frame: Frame, write: (Int, Double) throws -> Void, restore: () throws -> Void) throws -> Decision {
         var result = Decision(mode: "automatic", reason: "", cpu: frame.cpu, gpu: frame.gpu, palm: frame.palm)
-        let maxima = frame.maxRPM ?? [5779,6241], minima = frame.minRPM ?? [1200,1200]
+        let maxima = frame.maxRPM ?? [8400,9072], minima = frame.minRPM ?? [2000,2000]
         let dt = frame.elapsed ?? 2
         do {
             if let error = frame.error { throw CoolerError(error) }

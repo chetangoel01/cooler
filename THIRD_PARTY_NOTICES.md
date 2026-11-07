@@ -1,6 +1,6 @@
 # Third-party notices
 
-The SMC wire layout and M1 CPU/GPU sensor mapping follow [Stats](https://github.com/exelban/stats), retrieved 2026-09-26. Cooler implements only the M1 Max path and does not write thermal-manager unlock keys.
+The SMC wire layout follows [Stats](https://github.com/exelban/stats), retrieved 2026-09-26. The M5 CPU sensor keys and the lowercase M5 fan mode keys (`F0md`/`F1md`) follow Stats as retrieved 2026-11-07; the GPU keys were identified on this Mac by load testing. Cooler implements only the M5 Pro (Mac17,13) path and does not write thermal-manager unlock keys.
 
 MIT License
 

@@ -8,6 +8,10 @@ Menu redesign, written before its code: readings drawn as disabled gray text; a
 problem hidden behind the normal fan icon; an old success message read as live
 control; dynamic text adding tab columns, actions, or lines; the curves page or
 SwiftBar's own menu becoming unreachable; a trailing separator doubling SwiftBar's.
+Moving to the M5 Pro, written before its code: fan mode read under the M1 Max key
+name (F0Md), so control is never confirmed; curves drawn past the top of the graph
+once a fan's maximum exceeds 7,000 RPM; a tooltip promising a minimum speed below
+the fans' hardware minimum of 2,000 RPM.
 Fixtures run the complete plugin with a fake probe and a temporary home folder, so
 they never read or write the real saved curve or action state. The last check
 reads this Mac.
@@ -16,6 +20,7 @@ import datetime as dt
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import time
@@ -57,8 +62,8 @@ elif disabled: sys.exit(113)
 else: print('pid = 123')
 ''')
     launchctl.chmod(0o755)
-    values = {"F0Ac": 2010, "F1Ac": 2110, "F0Mx": 5779, "F1Mx": 6241,
-              "F0Mn": 1200, "F1Mn": 1200, "F0Md": 1, "F1Md": 1}
+    values = {"F0Ac": 2010, "F1Ac": 2110, "F0Mx": 8400, "F1Mx": 9072,
+              "F0Mn": 2000, "F1Mn": 2000, "F0md": 1, "F1md": 1}
     (source / "probe.json").write_text(json.dumps({"values": values}))
     status = {"pid":123, "cpu": 55, "gpu": 49, "palm": 29, "mode": "custom",
               "reason": "Cooling curve active", "targets": [2198, 2244],
@@ -67,7 +72,7 @@ else: print('pid = 123')
     home = source / "home"
     saved = home / "Library/Application Support/Cooler"
     saved.mkdir(parents=True)
-    (saved / "custom.json").write_text(json.dumps({"baselineRPM": 1900, "curve": config["curve"],
+    (saved / "custom.json").write_text(json.dumps({"baselineRPM": 2100, "curve": config["curve"],
                                                    "palmCurve": config["palmCurve"]}))
 
     def run():
@@ -87,8 +92,13 @@ else: print('pid = 123')
     assert 'param2=quiet' in menu and 'param2=balanced' in menu and 'param2=cooler' in menu and 'param2=automatic' in menu
     assert "CPU &amp; GPU" in html and "Palm rest" in html and "<svg" in html
     checks.append("Legible live temperatures and fan speeds, targets under Option, and both curve graphs")
+    heights = [float(y) for y in re.findall(r'<circle class="dot\d" cx="[\d.]+" cy="([\d.-]+)"', html)]
+    assert heights and min(heights) >= 0, "a curve point is drawn above the graph"
+    checks.append("Curves up to the 9,072 RPM fan maximum stay inside the graph")
+    assert 'tooltip="2,000 RPM minimum, full speed at 90°C"' in next(r for r in rows if "param2=quiet" in r)
+    checks.append("Mode tooltips never promise a minimum below the fans' hardware minimum")
     assert rows[-2].startswith("Edit Custom Curve… | bash=") and rows[-1].startswith("View Current Curves… | href=file://")
-    assert rows[-1].endswith("alternate=true") and 'tooltip="1,900 RPM minimum, full speed at 85°C"' in menu
+    assert rows[-1].endswith("alternate=true") and 'tooltip="2,100 RPM minimum, full speed at 85°C"' in menu
     header = PLUGIN.read_text()
     assert "<swiftbar.hideLastUpdated>true" in header and "<swiftbar.hideDisablePlugin>true" in header
     assert "hideSwiftBar" not in header
@@ -109,10 +119,10 @@ else: print('pid = 123')
     status['pid']=123
     (source/'status.json').write_text(json.dumps(status))
 
-    config["baselineRPM"] = 2000
+    config["baselineRPM"] = 2400
     (source / "config.json").write_text(json.dumps(config))
     _, html = run()
-    assert "2,000 RPM" in html
+    assert "2,400 RPM" in html
     checks.append("Curves use installed configuration")
 
     status.update(mode="automatic", reason="Another fan controller is running", targets=[])
@@ -121,7 +131,7 @@ else: print('pid = 123')
     assert menu.startswith("55° | sfimage=exclamationmark.triangle.fill ") and "Paused while another fan app is open" in menu
     assert not active(menu) and "Targets\tNot set by Cooler" in menu
     checks.append("Yielding to another controller has no Cooler targets and flags the menu bar")
-    values.update(F0Md=0, F1Md=0)
+    values.update(F0md=0, F1md=0)
     (source / "probe.json").write_text(json.dumps({"values": values}))
     menu, _ = run()
     assert "Targets\tSet by macOS" in menu

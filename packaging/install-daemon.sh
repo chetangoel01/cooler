@@ -14,8 +14,8 @@ base='/Library/Application Support/Cooler'
 job=system/com.chetangoel.cooler
 plist=/Library/LaunchDaemons/com.chetangoel.cooler.plist
 [ "$(/usr/bin/id -u)" = 0 ] || { echo 'Run this as root.' >&2; exit 1; }
-if [ "$(/usr/sbin/sysctl -n hw.model)" != MacBookPro18,4 ]; then
-  echo 'Cooler controls fans only on MacBookPro18,4; the controller was not installed.' >&2
+if [ "$(/usr/sbin/sysctl -n hw.model)" != Mac17,13 ]; then
+  echo 'Cooler controls fans only on Mac17,13; the controller was not installed.' >&2
   exit 0
 fi
 if /usr/bin/pgrep -x 'Macs Fan Control|Stats|TG Pro|smcFanControl|macfan' >/dev/null; then

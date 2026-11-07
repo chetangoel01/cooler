@@ -88,7 +88,7 @@ final class SMC {
     }
     func writeFan(_ id: Int, mode: Bool, value: Double) throws {
         guard (0...1).contains(id), value.isFinite else { throw CoolerError("Invalid fan write") }
-        let key = "F\(id)\(mode ? "Md" : "Tg")"
+        let key = "F\(id)\(mode ? "md" : "Tg")"
         let current = try read(key)
         var input = SMCData()
         input.key = code(key); input.command = 6; input.info.size = current.info.size
@@ -124,6 +124,9 @@ final class SMC {
         if !failures.isEmpty { throw CoolerError(failures.joined(separator: "; ")) }
     }
 }
+
+// The only Mac whose sensor and fan keys have been mapped (artifacts/m5-sensor-discovery.json).
+let supportedModel = "Mac17,13"
 
 func machineModel() -> String {
     var length = 0

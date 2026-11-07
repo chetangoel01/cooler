@@ -1,7 +1,9 @@
 {
-  "time": "2026-09-27T21:05:22.614383+00:00",
+  "time": "2026-11-07T09:12:20.864675+00:00",
   "checks": [
     "Legible live temperatures and fan speeds, targets under Option, and both curve graphs",
+    "Curves up to the 9,072 RPM fan maximum stay inside the graph",
+    "Mode tooltips never promise a minimum below the fans' hardware minimum",
     "Editor and curves page stay reachable; SwiftBar keeps its own menu and single separator",
     "The menu-bar icon shows Max cooling while it is in control",
     "Status from an old controller process cannot mark a new one healthy",
@@ -17,5 +19,5 @@
     "The only hardware command is read-only probe",
     "Installed controller read successfully without administrator access"
   ],
-  "passed": 15
+  "passed": 17
 }

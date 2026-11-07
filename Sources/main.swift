@@ -14,7 +14,7 @@ func emit<T: Encodable>(_ value: T) {
 }
 func log(_ message: String) { fputs("\(ISO8601DateFormatter().string(from: Date())) \(message)\n", stderr) }
 func requireHardware() throws {
-    guard machineModel() == "MacBookPro18,4" else { throw CoolerError("This build is restricted to MacBookPro18,4") }
+    guard machineModel() == supportedModel else { throw CoolerError("This build is restricted to \(supportedModel)") }
 }
 func requireRoot() throws {
     guard geteuid() == 0 else { throw CoolerError("Administrator privileges are required for fan changes") }
@@ -126,7 +126,7 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
         var decision = try controller.step(frame, write: { id, rpm in
             try heartbeat?.write(contentsOf: Data([1]))
             if !dry {
-                if try smc.value("F\(id)Md") != 1 { try smc.writeFan(id, mode: true, value: 1) }
+                if try smc.value("F\(id)md") != 1 { try smc.writeFan(id, mode: true, value: 1) }
                 try smc.writeFan(id, mode: false, value: rpm)
             }
         }, restore: { if !dry { try smc.automatic() } })
@@ -185,7 +185,7 @@ do {
         usleep(2_000_000)
         var values: [String:Double] = [:]
         for id in 0..<2 {
-            for suffix in ["Md", "Tg", "Ac", "Mx"] {
+            for suffix in ["md", "Tg", "Ac", "Mx"] {
                 let key = "F\(id)\(suffix)"; values[key] = try smc.value(key)
             }
         }
