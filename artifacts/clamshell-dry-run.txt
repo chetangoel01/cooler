@@ -1,0 +1,22 @@
+Clamshell check: M5 Pro awake with its lid shut, driving an external display over HDMI, on its charger.
+Read-only: dry-run reads the sensors and the lid but never writes to the SMC.
+Rerun with the lid shut and the display attached:
+  ioreg -r -k AppleClamshellState -d 1 | grep AppleClamshell; ./build/cooler dry-run config.json 3
+Expected: AppleClamshellState = Yes, AppleClamshellCausesSleep = No, and "Cooling curve active" with targets.
+
+== Before: lid rule as installed November 7 (binary SHA-1 81b008fb, identical to the installed controller) ==
+2026-11-10T21:09:51Z
+      "AppleClamshellCausesSleep" = No
+      "AppleClamshellState" = Yes
+{"cpu":46.484375,"gpu":44.875,"mode":"automatic","palm":33.4375,"pid":28800,"reason":"Lid closed; macOS controls the fans","restoredFans":[],"targets":[],"time":"2026-11-10T21:09:52Z"}
+{"cpu":44.640625,"gpu":44.625,"mode":"automatic","palm":33.4375,"pid":28800,"reason":"Lid closed; macOS controls the fans","restoredFans":[],"targets":[],"time":"2026-11-10T21:09:54Z"}
+{"cpu":44.375,"gpu":44.21875,"mode":"automatic","palm":33.4375,"pid":28800,"reason":"Lid closed; macOS controls the fans","restoredFans":[],"targets":[],"time":"2026-11-10T21:09:56Z"}
+
+== After: closed lid counts only when macOS says it sleeps the Mac ==
+2026-11-10T21:12:18Z
+      "AppleClamshellCausesSleep" = No
+      "AppleClamshellState" = Yes
+{"cpu":59.171875,"gpu":47.296875,"mode":"custom","palm":33.25,"pid":30164,"reason":"Cooling curve active","restoredFans":[],"targets":[3440,3591],"time":"2026-11-10T21:12:18Z"}
+{"cpu":50.046875,"gpu":46.109375,"mode":"custom","palm":33.25,"pid":30164,"reason":"Cooling curve active","restoredFans":[],"targets":[3440,3591],"time":"2026-11-10T21:12:20Z"}
+{"cpu":47.84375,"gpu":45.515625,"mode":"custom","palm":33.25,"pid":30164,"reason":"Cooling curve active","restoredFans":[],"targets":[3440,3591],"time":"2026-11-10T21:12:22Z"}
+2026-11-10T21:12:22Z Dry-run watchdog restored automatic control

@@ -27,13 +27,19 @@ func conflict() throws -> Bool {
     guard p.terminationStatus <= 1 else { throw CoolerError("Cannot check for another fan controller") }
     return p.terminationStatus == 0
 }
+// True only when the lid is shut and macOS says that sleeps the Mac. In clamshell mode
+// macOS keeps the Mac awake, so this is false and the curve stays on.
 // nil on Macs without a lid, or if the power manager can't be read.
 func lidClosed() -> Bool? {
     let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
     guard root != 0 else { return nil }
     defer { IOObjectRelease(root) }
-    return IORegistryEntryCreateCFProperty(root, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)?
-        .takeRetainedValue() as? Bool
+    func flag(_ key: String) -> Bool? {
+        IORegistryEntryCreateCFProperty(root, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
+    }
+    guard let closed = flag("AppleClamshellState") else { return nil }
+    // Without the sleep flag, assume a closed lid sleeps the Mac.
+    return closed && (flag("AppleClamshellCausesSleep") ?? true)
 }
 func secureConfig(_ path: String) throws {
     var metadata = stat()
@@ -124,7 +130,7 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
         let now = Date()
         frame.elapsed = count == 0 ? 2 : now.timeIntervalSince(previousTime)
         previousTime = now
-        // Read here, not in readFrame, so `check` still passes on a Mac docked with its lid closed.
+        // Read here, not in readFrame, so `check` judges only the sensors and fans.
         frame.lidClosed = lidClosed()
         if !dry {
             do { frame.conflict = try conflict() }

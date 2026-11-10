@@ -1,29 +1,29 @@
 {
-  "time": "2026-11-08T00:11:46.797834+00:00",
+  "time": "2026-11-10T21:15:18.965106+00:00",
   "checks": [
     {
       "name": "normal exit",
       "passed": true,
-      "elapsed": 0.07,
-      "log": "2026-11-08T00:11:34Z Dry-run watchdog restored automatic control\n"
+      "elapsed": 0.06,
+      "log": "2026-11-10T21:15:06Z Dry-run watchdog restored automatic control\n"
     },
     {
       "name": "crash",
       "passed": true,
       "elapsed": 0.11,
-      "log": "2026-11-08T00:11:34Z Dry-run watchdog restored automatic control\n"
+      "log": "2026-11-10T21:15:06Z Dry-run watchdog restored automatic control\n"
     },
     {
       "name": "stall",
       "passed": true,
       "elapsed": 9.99,
-      "log": "2026-11-08T00:11:44Z Controller heartbeat timed out; terminating controller\n2026-11-08T00:11:44Z Dry-run watchdog restored automatic control\n"
+      "log": "2026-11-10T21:15:16Z Controller heartbeat timed out; terminating controller\n2026-11-10T21:15:16Z Dry-run watchdog restored automatic control\n"
     },
     {
       "name": "watchdog loss",
       "passed": true,
-      "elapsed": 2.05,
-      "log": "2026-11-08T00:11:46Z Watchdog exited; refusing further control\n"
+      "elapsed": 2.06,
+      "log": "2026-11-10T21:15:18Z Watchdog exited; refusing further control\n"
     }
   ],
   "scope": "Compiled CLI; actual process signals and watchdog; read-only hardware, no fan writes."
