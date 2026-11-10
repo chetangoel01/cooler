@@ -34,6 +34,7 @@ EDITABLE = {'baselineRPM', 'curve', 'palmCurve'}
 INK = 'color=#1d1d1f,#ececec'
 MUTED = 'color=#6e6e73,#98989d'
 RESUMING = {'Waiting for three healthy samples', 'Resuming after a gap; collecting fresh samples'}
+LID = 'Lid closed; macOS controls the fans'
 NOTES = {'Applying the new setting': 'Applying the new setting…',
          'Checking the new setting': 'Checking the new setting…',
          'Setting saved': 'Saved; waiting for Cooler to confirm'}
@@ -319,12 +320,13 @@ def main():
     if selected=='max cooling': selected='max'
     mode, reason = status.get('mode'), line(status.get('reason', ''))
     resuming = fresh and mode == 'automatic' and reason in RESUMING
+    lid = fresh and mode == 'automatic' and reason == LID
     # A warning means the checked mode is not what the fans are doing right now.
     if disabled is True and pid is None:
         warning = None if automatic else 'Cooler is off; fan mode unconfirmed'
     elif not fresh:
         warning = 'No recent update from Cooler' if status else 'Cooler status unavailable'
-    elif active or resuming:
+    elif active or resuming or lid:
         warning = None
     elif mode == 'automatic':
         warning = {'Another fan controller is running': 'Paused while another fan app is open',
@@ -351,6 +353,8 @@ def main():
         print(f"{warning} | sfimage=exclamationmark.triangle {INK} length=48")
     elif resuming:
         print(f"Resuming control… | {MUTED}")
+    elif lid:
+        print(f"{LID} | {MUTED}")
     for key, name in [("cpu", "CPU"), ("gpu", "GPU"), ("palm", "Palm rest")]:
         # Desktops have no palm rest; the row stays while the sensors are merely unreadable.
         if key == "palm" and hardware.get("palm") == []: continue

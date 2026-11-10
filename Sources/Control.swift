@@ -28,6 +28,7 @@ struct Frame: Codable {
     var gpu: Double?
     var palm: Double?
     var conflict: Bool?
+    var lidClosed: Bool?  // nil on Macs without a lid
     var elapsed: Double?
     var maxRPM: [Double]?
     var minRPM: [Double]?
@@ -68,6 +69,8 @@ final class Controller {
         do {
             if let error = frame.error { throw CoolerError(error) }
             guard frame.conflict != true else { throw CoolerError("Another fan controller is running") }
+            // macOS stops the fans of a closed Mac, so Cooler hands them back until the lid opens.
+            guard frame.lidClosed != true else { throw CoolerError("Lid closed; macOS controls the fans") }
             guard dt > 0, dt <= 10 else { throw CoolerError("Resuming after a gap; collecting fresh samples") }
             // No palm reading means a Mac without palm sensors; a failed palm read arrives as frame.error.
             guard let cpu = frame.cpu, let gpu = frame.gpu,

@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import IOKit
 
 var stopped: Int32 = 0
 signal(SIGTERM) { _ in stopped = 1 }
@@ -25,6 +26,14 @@ func conflict() throws -> Bool {
     try p.run(); p.waitUntilExit()
     guard p.terminationStatus <= 1 else { throw CoolerError("Cannot check for another fan controller") }
     return p.terminationStatus == 0
+}
+// nil on Macs without a lid, or if the power manager can't be read.
+func lidClosed() -> Bool? {
+    let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+    guard root != 0 else { return nil }
+    defer { IOObjectRelease(root) }
+    return IORegistryEntryCreateCFProperty(root, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)?
+        .takeRetainedValue() as? Bool
 }
 func secureConfig(_ path: String) throws {
     var metadata = stat()
@@ -115,6 +124,8 @@ func run(_ configPath: String, dry: Bool, samples: Int) throws {
         let now = Date()
         frame.elapsed = count == 0 ? 2 : now.timeIntervalSince(previousTime)
         previousTime = now
+        // Read here, not in readFrame, so `check` still passes on a Mac docked with its lid closed.
+        frame.lidClosed = lidClosed()
         if !dry {
             do { frame.conflict = try conflict() }
             catch { frame.error = String(describing: error) }

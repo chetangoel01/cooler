@@ -17,6 +17,9 @@ sensor keys the profile names instead of the ones detected on this Mac; a one-fa
 Mac shown as "Unavailable" because two fans are expected, or with Left and Right
 fan curves; a desktop shown with a palm rest reading and palm curve it does not
 have; the editor refusing a Mac whose fan count is not two.
+Handing the fans to macOS while the lid is closed, written before its code: the
+intended handover shown as a paused warning; nothing saying why macOS has the fans
+while a Cooler profile stays checked.
 Fixtures run the complete plugin with a fake probe and a temporary home folder, so
 they never read or write the real saved curve or action state. The last check
 reads this Mac.
@@ -143,6 +146,13 @@ else: print('pid = 123')
     menu, _ = run()
     assert "Targets\tSet by macOS" in menu
     checks.append("Hardware automatic mode is identified")
+    status.update(reason="Lid closed; macOS controls the fans")
+    (source / "status.json").write_text(json.dumps(status))
+    menu, _ = run()
+    assert "exclamationmark.triangle" not in menu and "Paused" not in menu
+    assert "Lid closed; macOS controls the fans | color=" in menu and "Targets\tSet by macOS" in menu
+    checks.append("A closed lid reads as macOS in control, not as a problem")
+    status.update(reason="Another fan controller is running")
 
     (source/'disabled').touch()
     values.update({key:42 for key in hardware['cpu']})

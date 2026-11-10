@@ -1,10 +1,10 @@
-82° | sfimage=fan.fill dropdown=false tooltip="CPU temperature"
+62° | sfimage=fan.fill dropdown=false tooltip="CPU temperature"
 ---
-CPU	82° | color=#1d1d1f,#ececec
-GPU	60° | color=#1d1d1f,#ececec
-Palm rest	29° | color=#1d1d1f,#ececec
-Fans	8,160 · 8,710 RPM | color=#1d1d1f,#ececec
-Targets	8,400 · 9,072 RPM | color=#1d1d1f,#ececec alternate=true
+CPU	62° | color=#1d1d1f,#ececec
+GPU	57° | color=#1d1d1f,#ececec
+Palm rest	34° | color=#1d1d1f,#ececec
+Fans	4,055 · 4,301 RPM | color=#1d1d1f,#ececec
+Targets	4,053 · 4,299 RPM | color=#1d1d1f,#ececec alternate=true
 ---
 Apple Automatic | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=automatic terminal=false refresh=true checked=false tooltip="macOS controls the fans and Cooler stays off"
 Quiet | bash=/opt/homebrew/bin/python3 param0="~/CodexProjects/cooler/monitor/cooler.5s.py" param1=--apply-profile param2=quiet terminal=false refresh=true checked=false tooltip="2,000 RPM minimum, full speed at 90°C"

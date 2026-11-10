@@ -11,6 +11,13 @@ spelling (F0Md on the M1 Max, F0md on the M5 Pro); a Mac without palm sensors is
 refused; an installed profile from an older version, which still names a model
 and sensors, stops loading. Later: a Mac whose fan keys differ from the ones Cooler
 writes passes the read-only check and fails only once installed.
+Handing the fans to macOS while the lid is closed, written before its code: the fans
+stay in Cooler's manual mode when the lid closes, so they run at its minimum through
+sleep; Cooler takes them back during the Mac's brief wake-ups with the lid still shut;
+a wake with the lid shut is reported as a gap, hiding why macOS has the fans; the
+curve never resumes once the lid opens, or resumes before three healthy samples; a
+desktop, which has no lid reading, is treated as closed and never cooled; the
+install check refuses a Mac that is docked with its lid closed.
 """
 import json, pathlib, subprocess, tempfile, datetime
 root = pathlib.Path(__file__).resolve().parents[1]
@@ -71,6 +78,17 @@ p, r = run([frame()], old)
 check('a profile from an older version, naming a model and sensors, still loads', p.returncode == 0 and r[0]['mode'] == 'custom')
 p, r = run([frame(65), frame(cpu=None), frame(), frame(), frame()])
 check('three healthy samples resume cooling after sensor recovery', r[-1]['mode'] == 'custom' and r[-2]['mode'] == 'automatic')
+p, r = run([frame(65), frame(65, lidClosed=True), frame(65, lidClosed=True)])
+check('closing the lid hands both fans back to macOS, naming the lid',
+      r[1]['mode'] == 'automatic' and r[1]['restoredFans'] == [0,1] and r[1]['reason'].startswith('Lid closed'))
+check('while the lid stays closed Cooler sets no targets', r[2]['targets'] == [] and r[2]['restoredFans'] == [])
+p, r = run([frame(65), frame(65, lidClosed=True, elapsed=600)])
+check('a wake with the lid still closed hands back the fans and names the lid, not the gap',
+      r[1]['restoredFans'] == [0,1] and r[1]['reason'].startswith('Lid closed'))
+p, r = run([frame(65, lidClosed=True), frame(65), frame(65), frame(65)])
+check('opening the lid resumes the curve on the third healthy sample', [d['mode'] for d in r] == ['automatic']*3 + ['custom'])
+p, r = run([frame(65, lidClosed=False)])
+check('an open lid cools as before (frames without a reading stand for desktops)', r[0]['mode'] == 'custom')
 
 def mapped(brand, probe):
     with tempfile.TemporaryDirectory() as d:

@@ -1,5 +1,5 @@
 {
-  "time": "2026-11-07T13:57:02.257555+00:00",
+  "time": "2026-11-08T00:17:10.826652+00:00",
   "checks": [
     "Legible live temperatures and fan speeds, targets under Option, and both curve graphs",
     "Curves up to the 9,072 RPM fan maximum stay inside the graph",
@@ -10,6 +10,7 @@
     "Curves use installed configuration",
     "Yielding to another controller has no Cooler targets and flags the menu bar",
     "Hardware automatic mode is identified",
+    "A closed lid reads as macOS in control, not as a problem",
     "Apple automatic keeps live temperatures after the daemon is stopped",
     "Stale status never appears live",
     "A past success never reads as live control; a failed change stays visible",
@@ -20,5 +21,5 @@
     "The only hardware command is read-only probe",
     "Installed controller read successfully without administrator access"
   ],
-  "passed": 18
+  "passed": 19
 }
