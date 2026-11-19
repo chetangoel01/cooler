@@ -28,7 +28,9 @@ func conflict() throws -> Bool {
     return p.terminationStatus == 0
 }
 // True only when the lid is shut and macOS says that sleeps the Mac. In clamshell mode
-// macOS keeps the Mac awake, so this is false and the curve stays on.
+// macOS keeps the Mac awake, so this is false and the curve stays on. It is also false while
+// sleep is switched off altogether (`pmset disablesleep`, which Amphetamine sets for a closed
+// display): macOS still says a closed lid sleeps the Mac then, but the Mac stays awake.
 // nil on Macs without a lid, or if the power manager can't be read.
 func lidClosed() -> Bool? {
     let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
@@ -39,7 +41,7 @@ func lidClosed() -> Bool? {
     }
     guard let closed = flag("AppleClamshellState") else { return nil }
     // Without the sleep flag, assume a closed lid sleeps the Mac.
-    return closed && (flag("AppleClamshellCausesSleep") ?? true)
+    return closed && (flag("AppleClamshellCausesSleep") ?? true) && flag("SleepDisabled") != true
 }
 func secureConfig(_ path: String) throws {
     var metadata = stat()
